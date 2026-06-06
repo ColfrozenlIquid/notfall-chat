@@ -17,13 +17,15 @@ typedef struct {
     uint16_t window_size;
     uint16_t data_len;
     uint16_t checksum;
-    char data[PACKET_DATA_SIZE];
+    uint8_t data[PACKET_DATA_SIZE];
 } Packet;
 
 #define PACKET_HEADER_SIZE offsetof(Packet, data)
 
-uint16_t packet_checksum(const char* buf, size_t len);
+uint16_t packet_checksum(const uint8_t* buf, size_t len);
 
-int packet_verify_checksum(const char* buf);
+int packet_verify_checksum(const uint8_t* buf);
 
-int packet_decode(const char* buf, ssize_t buf_len, Packet* out);
+int packet_decode(const uint8_t* buf, ssize_t buf_len, Packet* out);
+
+int packet_encode(const Packet* in, uint8_t* buf, size_t buf_len);

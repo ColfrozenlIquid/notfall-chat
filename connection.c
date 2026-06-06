@@ -1,10 +1,15 @@
 #include "connection.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <time.h>
 #include "packet.h"
+#include <stdint.h>
+#include <unistd.h>
 
 bool fsm_dispatch(Connection* conn, Event event) {
-    for (size_t i = 0; i < sizeof(transitions); i++) {
+    for (size_t i = 0; i < sizeof(transitions)/sizeof(transitions[0]); i++) {
         const Transition* t = &transitions[i];
         if (t->current == conn->state && t->event == event) {
             if (t->action) t->action(conn);
@@ -41,6 +46,19 @@ void send_data(Connection* conn) {
 
 void reset_listen(Connection *conn) {}
 
-void send_segment(Connection *conn, uint16_t flag, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len) {
+void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len) {
+    Packet pkt;
+    memset(&pkt, 0, sizeof(pkt));
 
+    pkt.flags = flags;
+    pkt.seq_number = snd_seq;
+    pkt.ack_number = rcv_seq;
+    pkt.data_len = snd_len;
+
+    if (snd_len > 0) memcpy(pkt.data, snd_buf, snd_len);
+
+    uint8_t buffer[PACKET_HEADER_SIZE + PACKET_DATA_SIZE];
+    size_t packet_len = packet_encode(&pkt, buffer, sizeof(buffer));
+
+    sendto(conn->sockfd, buffer, packet_len, 0, (struct sockaddr*)&conn->peer_addr, conn->peer_len);
 }

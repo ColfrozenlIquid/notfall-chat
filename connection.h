@@ -1,6 +1,8 @@
 #pragma once
 
+#include <netinet/in.h>
 #include <stddef.h>
+#include <sys/socket.h>
 #include <time.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -49,6 +51,11 @@ typedef struct {
     size_t rcv_len;
 
     struct timespec time_wait_start;
+
+    int sockfd;
+
+    struct sockaddr_in peer_addr;
+    socklen_t peer_len;
 } Connection;
 
 typedef void (*ActionFn) (Connection* conn);
@@ -74,7 +81,7 @@ void send_fin(Connection* conn);
 
 void send_data(Connection* conn);
 
-void send_segment(Connection* conn, uint16_t flag, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len);
+void send_segment(Connection* conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len);
 
 static const Transition transitions[] = {
     // Client side (receiver)
