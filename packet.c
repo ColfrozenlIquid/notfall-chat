@@ -12,19 +12,19 @@
 
 uint16_t packet_checksum(const uint8_t* buf, size_t len) {
     uint32_t sum = 0;
-    const uint16_t* ptr = (const uint16_t*)buf;
 
-    while(len > 1) {
-        sum += *ptr++;
+    while (len > 1) {
+        uint16_t word = ((uint16_t)buf[0] << 8) | buf[1];
+        sum += word;
+        buf += 2;
         len -= 2;
     }
-    if (len == 1) {
-        sum += *(const uint8_t*)ptr;
-    }
 
-    while (sum >> 16) {
+    if (len == 1)
+        sum += ((uint16_t)buf[0] << 8);
+
+    while (sum >> 16)
         sum = (sum & 0xFFFF) + (sum >> 16);
-    }
 
     return (uint16_t)~sum;
 }
@@ -33,7 +33,7 @@ int packet_verify_checksum(const uint8_t* buf) {
     const Packet* p = (const Packet*)buf;
     size_t len = PACKET_HEADER_SIZE + ntohs(p->data_len);
     uint16_t result = packet_checksum(buf, len);
-    return result == 0xFFFF ? 0 : -1;
+    return result == 0 ? 0 : -1;
 }
 
 int packet_decode(const uint8_t* buf, ssize_t buf_len, Packet* out) {
@@ -85,8 +85,6 @@ int packet_decode(const uint8_t* buf, ssize_t buf_len, Packet* out) {
 }
 
 int packet_encode(const Packet* in, uint8_t* buf, size_t buf_len) {
-
-
     size_t total_size = PACKET_HEADER_SIZE + in->data_len;
 
     if (in->data_len > PACKET_DATA_SIZE) return -1;
