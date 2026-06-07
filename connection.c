@@ -13,7 +13,9 @@ bool fsm_dispatch(Connection* conn, Event event) {
         const Transition* t = &transitions[i];
         if (t->current == conn->state && t->event == event) {
             if (t->action) t->action(conn);
+            printf("Current state: %s\n", state_str(conn->state));
             conn->state = t->next;
+            printf("Changing state to: %s\n", state_str(conn->state));
             return true;
         }
     }
@@ -61,4 +63,10 @@ void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t r
     size_t packet_len = packet_encode(&pkt, buffer, sizeof(buffer));
 
     sendto(conn->sockfd, buffer, packet_len, 0, (struct sockaddr*)&conn->peer_addr, conn->peer_len);
+}
+
+const char* state_str(State s) {
+    if (s < 0 || s >= STATE_COUNT)
+        return "UNKNOWN_STATE";
+    return state_to_string[s];
 }

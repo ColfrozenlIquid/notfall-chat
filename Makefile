@@ -1,7 +1,7 @@
-build:
+build: clean
 	mkdir -p build && cd build && cmake .. && make
 
-run:
+run: build
 	./build/server
 
 run-client:

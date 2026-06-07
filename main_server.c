@@ -9,6 +9,7 @@
 #define DEFAULT_PORT 12345
 #define BUFFER_SIZE 1024
 
+// Server
 int main(int argc, char* argv[]) {
     int port = DEFAULT_PORT;
     if (argc == 2) {

@@ -37,10 +37,6 @@ int packet_verify_checksum(const uint8_t* buf) {
 }
 
 int packet_decode(const uint8_t* buf, ssize_t buf_len, Packet* out) {
-    fprintf(stderr, "sizeof(Packet)=%zu, PACKET_DATA_SIZE=%u, PACKET_HEADER_SIZE=%zu, diff=%zu\n",
-            sizeof(Packet), PACKET_DATA_SIZE, PACKET_HEADER_SIZE,
-            sizeof(Packet) - PACKET_DATA_SIZE);
-
     if (buf_len < (ssize_t)PACKET_HEADER_SIZE) {
         fprintf(stderr, "packet_decode: too short — got %zd, need %zu\n",
                 buf_len, PACKET_HEADER_SIZE);

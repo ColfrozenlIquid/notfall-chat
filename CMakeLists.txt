@@ -18,5 +18,6 @@ add_executable(server
 add_executable(client
     main_client.c
     client.c
+    server.c
     ${COMMON_SOURCES}
 )

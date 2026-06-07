@@ -1,24 +1,25 @@
+#include <bits/time.h>
 #include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <errno.h>
+
+
 
 #include "server.h"
 #include "connection.h"
 
 int run_server(int port) {
     int sockfd;
-    uint8_t buffer[BUFFER_SIZE];
-
     struct sockaddr_in server_addr;
-    struct sockaddr_in client_addr;
-
-    socklen_t client_len = sizeof(client_addr);
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -39,42 +40,29 @@ int run_server(int port) {
 
     printf("UDP server socket listening on port: %d\n", port);
 
-    Connection conn;
+    Connection conn = {0};
+    conn.sockfd = sockfd;
     conn.state = LISTEN;
+    pthread_mutex_init(&conn.mutex, NULL);
+    pthread_cond_init(&conn.cond_recv, NULL);
+    pthread_cond_init(&conn.cond_send, NULL);
 
-    while (1) {
-        ssize_t bytes = recvfrom(
-            sockfd,
-            buffer,
-            sizeof(buffer) - 1,
-            0,
-            (struct sockaddr*)&client_addr,
-            &client_len
-        );
+    pthread_t recv_thread;
+    pthread_t send_thread;
+    pthread_create(&recv_thread, NULL, receiver_thread, &conn);
+    pthread_create(&send_thread, NULL, sender_thread, &conn);
 
-        if (bytes < 0) {
-            perror("recvfrom");
-            continue;
-        }
+    pthread_join(recv_thread, NULL);
+    pthread_join(send_thread, NULL);
 
-        conn.peer_addr = client_addr;
-        conn.peer_len = client_len;
-        conn.sockfd = sockfd;
-
-        handle_packet(&conn, buffer, bytes, sockfd);
-
-        printf("Received from %s:%d: %s\n",
-            inet_ntoa(client_addr.sin_addr),
-            ntohs(client_addr.sin_port),
-            buffer
-        );
-    }
-
+    pthread_mutex_destroy(&conn.mutex);
+    pthread_cond_destroy(&conn.cond_send);
+    pthread_cond_destroy(&conn.cond_recv);
     close(sockfd);
     return 0;
 }
 
-void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len, int sockfd) {
+void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len) {
     Packet packet;
     if (packet_decode(buf, buf_len, &packet) != 0) {
         fprintf(stderr, "invalid packet (bad length or checksum)\n");
@@ -103,5 +91,98 @@ void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len, int soc
     }
 
     fsm_dispatch(conn, event);
+}
 
+void* receiver_thread(void* arg) {
+    Connection* conn = (Connection*)arg;
+    uint8_t buffer[BUFFER_SIZE];
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+
+    pthread_mutex_lock(&conn->mutex);
+    conn->receiver_ready = 1;
+    pthread_cond_signal(&conn->cond_recv);
+    pthread_mutex_unlock(&conn->mutex);
+
+    while (1) {
+        ssize_t bytes = recvfrom(
+            conn->sockfd,
+            buffer,
+            sizeof(buffer) - 1,
+            0,
+            (struct sockaddr*)&client_addr,
+            &client_len
+        );
+
+        if (bytes < 0) {
+            perror("recvfrom");
+            continue;
+        }
+
+        pthread_mutex_lock(&conn->mutex);
+        conn->peer_addr = client_addr;
+        conn->peer_len = client_len;
+
+        handle_packet(conn, buffer, bytes);
+
+        pthread_cond_signal(&conn->cond_send);
+        pthread_cond_signal(&conn->cond_recv);
+        pthread_mutex_unlock(&conn->mutex);
+    }
+}
+
+#define MAX_RETRIES 5
+#define RTO_MS 200
+
+void* sender_thread(void* arg) {
+    Connection* conn = (Connection*)arg;
+
+    pthread_mutex_lock(&conn->mutex);
+
+    while (1) {
+        while (conn->snd_len == 0) {
+            pthread_cond_wait(&conn->cond_send, &conn->mutex);
+        }
+
+        uint8_t buf[BUFFER_SIZE];
+        size_t len = conn->snd_len;
+        uint32_t seq = conn->snd_seq;
+        uint32_t ack = conn->rcv_seq;
+        memcpy(buf, conn->snd_buf, len);
+
+        pthread_mutex_unlock(&conn->mutex);
+        send_segment(conn, FLAG_ACK, seq, ack, buf, len);
+        pthread_mutex_lock(&conn->mutex);
+
+        uint32_t expected_ack = seq + len;
+
+        struct timespec deadline;
+        int retries = 0;
+
+        while (conn->snd_ack != expected_ack && retries < MAX_RETRIES) {
+            clock_gettime(CLOCK_REALTIME, &deadline);
+            deadline.tv_nsec += RTO_MS * 1000000L;
+            if (deadline.tv_nsec >= 1000000000L) {
+                deadline.tv_sec++;
+                deadline.tv_nsec -= 1000000000L;
+            }
+
+            int rc = pthread_cond_timedwait(&conn->cond_send, &conn->mutex, &deadline);
+            if (rc == ETIMEDOUT && conn->snd_ack != expected_ack) {
+                pthread_mutex_unlock(&conn->mutex);
+                send_segment(conn, FLAG_ACK, seq, ack, buf, len);
+                pthread_mutex_lock(&conn->mutex);
+                retries++;
+            }
+        }
+
+        if (conn->snd_ack == expected_ack) {
+            conn->snd_seq += len;
+            conn->snd_len = 0;
+        } else {
+            fprintf(stderr, "send failed after %d retries\n", MAX_RETRIES);
+        }
+    }
+    pthread_mutex_unlock(&conn->mutex);
+    return NULL;
 }

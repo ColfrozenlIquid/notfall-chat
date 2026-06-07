@@ -9,4 +9,8 @@
 
 int run_server(int port);
 
-void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len, int sockfd);
+void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len);
+
+void* receiver_thread(void* arg);
+
+void* sender_thread(void* arg);

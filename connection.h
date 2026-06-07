@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bits/pthreadtypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <sys/socket.h>
@@ -19,7 +20,24 @@ typedef enum {
     TIME_WAIT,
     CLOSE_WAIT,
     LAST_ACK,
+    STATE_COUNT,
 } State ;
+
+static const char* state_to_string[] = {
+    "CLOSED",
+    "LISTEN",
+    "SYN_RECEIVED",
+    "SYN_SENT",
+    "ESTABLISHED",
+    "FIN_WAIT_1",
+    "FIN_WAIT_2",
+    "CLOSING",
+    "TIME_WAIT",
+    "CLOSE_WAIT",
+    "LAST_ACK"
+};
+
+const char* state_str(State s);
 
 typedef enum {
     CONNECT,
@@ -56,6 +74,12 @@ typedef struct {
 
     struct sockaddr_in peer_addr;
     socklen_t peer_len;
+
+    pthread_mutex_t mutex;
+    pthread_cond_t cond_send;
+    pthread_cond_t cond_recv;
+
+    int receiver_ready;
 } Connection;
 
 typedef void (*ActionFn) (Connection* conn);
