@@ -85,7 +85,6 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + 1;
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
-        // memcpy(conn->rcv_buf, packet.data, packet.data_len);
         rb_write(&conn->rcv_buf, packet.data, packet.data_len);
         conn->rcv_len = packet.data_len;
         pthread_cond_signal(&conn->cond_recv);

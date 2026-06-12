@@ -83,6 +83,9 @@ typedef struct {
     pthread_cond_t cond_recv;
 
     int receiver_ready;
+
+    pthread_t recv_tid;
+    pthread_t send_tid;
 } Connection;
 
 typedef void (*ActionFn) (Connection* conn);

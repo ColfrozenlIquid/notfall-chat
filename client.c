@@ -63,20 +63,14 @@ int connect_to_server(const char* server_ip, int port, Connection* conn) {
     while (conn->state != ESTABLISHED) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
-    pthread_mutex_unlock(&conn->mutex);
 
+    conn->recv_tid = recv_tid;
+    conn->send_tid = send_tid;
+    pthread_mutex_unlock(&conn->mutex);
     printf("connection established\n");
 
-    while(1) {
-        int len = 0;
-        uint8_t* input = read_input(&len);
-        if(!input) break;
-        write_to_connection(conn, input, len);
-        free(input);
-    }
 
-    pthread_join(recv_tid, NULL);
-    pthread_join(send_tid, NULL);
+
     return 0;
 }
 
