@@ -70,6 +70,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         return;
     }
 
+    printf("Packet data len: %d\n", packet.data_len);
+
     conn->snd_ack = packet.ack_number;
     if (packet.flags & FLAG_SYN || packet.flags & FLAG_FIN) {
         conn->rcv_seq = packet.seq_number + 1;
@@ -77,6 +79,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + packet.data_len;
         memcpy(conn->rcv_buf, packet.data, packet.data_len);
         conn->rcv_len = packet.data_len;
+        pthread_cond_signal(&conn->cond_recv);
+        send_ack(conn);
     }
 
     Event event;
@@ -90,6 +94,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         fprintf(stderr, "unknown flags: 0x%04x\n", packet.flags);
         return;
     }
+
+    printf("Dispatching\n");
 
     fsm_dispatch(conn, event);
 }
