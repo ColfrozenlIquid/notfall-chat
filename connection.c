@@ -75,9 +75,23 @@ const char* state_str(State s) {
 }
 
 void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
+    uint8_t header[4];
+    header[0] = (data_len >> 24) & 0xFF;
+    header[1] = (data_len >> 16) & 0xFF;
+    header[2] = (data_len >> 8) & 0xFF;
+    header[3] = data_len & 0xFF;
+
+    size_t total_len = 4 + data_len;
+
     pthread_mutex_lock(&conn->mutex);
-    memcpy(conn->snd_buf, data, data_len);
-    conn->snd_len = data_len;
+    while (conn->snd_len + total_len > SND_BUFFER_SIZE) {
+        pthread_cond_wait(&conn->cond_send, &conn->mutex);
+    }
+
+    memcpy(conn->snd_buf + conn->snd_len, header, 4);
+    memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
+    conn->snd_len = total_len;
+
     pthread_mutex_unlock(&conn->mutex);
     pthread_cond_signal(&conn->cond_send);
 }

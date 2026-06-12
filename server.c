@@ -71,6 +71,10 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
     }
 
     printf("Packet data len: %d\n", packet.data_len);
+    for (int i = 0; i < packet.data_len; i++) {
+        printf("[%hhu]", packet.data[i]);
+    }
+    printf("\n");
 
     conn->snd_ack = packet.ack_number;
     if (packet.flags & FLAG_SYN || packet.flags & FLAG_FIN) {

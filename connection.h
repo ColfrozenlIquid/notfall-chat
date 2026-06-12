@@ -54,8 +54,8 @@ typedef enum {
     TIMEOUT,
 } Event;
 
-#define SND_BUFFER_SIZE 512
-#define RCV_BUFFER_SIZE 512
+#define SND_BUFFER_SIZE 8196
+#define RCV_BUFFER_SIZE 8196
 
 typedef struct {
     State state;
