@@ -7,8 +7,5 @@ run: build
 run-client:
 	./build/client 127.0.0.1 12345
 
-run-both:
-	./build/server & ./build/client 127.0.0.1 12345
-
 clean:
 	rm -rf build

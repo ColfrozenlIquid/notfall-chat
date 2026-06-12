@@ -1,4 +1,4 @@
-#include "connection.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +7,9 @@
 #include "packet.h"
 #include <stdint.h>
 #include <unistd.h>
+
+#include "connection.h"
+
 
 bool fsm_dispatch(Connection* conn, Event event) {
     for (size_t i = 0; i < sizeof(transitions)/sizeof(transitions[0]); i++) {
@@ -69,4 +72,12 @@ const char* state_str(State s) {
     if (s < 0 || s >= STATE_COUNT)
         return "UNKNOWN_STATE";
     return state_to_string[s];
+}
+
+void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
+    pthread_mutex_lock(&conn->mutex);
+    memcpy(conn->snd_buf, data, data_len);
+    conn->snd_len = data_len;
+    pthread_mutex_unlock(&conn->mutex);
+    pthread_cond_signal(&conn->cond_send);
 }

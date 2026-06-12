@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bits/pthreadtypes.h>
+#include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <sys/socket.h>
@@ -106,6 +107,8 @@ void send_fin(Connection* conn);
 void send_data(Connection* conn);
 
 void send_segment(Connection* conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len);
+
+void write_to_connection(Connection* conn, uint8_t* data, size_t data_len);
 
 static const Transition transitions[] = {
     // Client side (receiver)

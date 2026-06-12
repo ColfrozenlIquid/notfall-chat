@@ -12,10 +12,10 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-
-
 #include "server.h"
 #include "connection.h"
+
+
 
 int run_server(int port) {
     int sockfd;
@@ -62,7 +62,8 @@ int run_server(int port) {
     return 0;
 }
 
-void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len) {
+void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len) {
+    printf("Handling incoming packet\n");
     Packet packet;
     if (packet_decode(buf, buf_len, &packet) != 0) {
         fprintf(stderr, "invalid packet (bad length or checksum)\n");
@@ -123,7 +124,7 @@ void* receiver_thread(void* arg) {
         conn->peer_addr = client_addr;
         conn->peer_len = client_len;
 
-        handle_packet(conn, buffer, bytes);
+        handle_incoming_packet(conn, buffer, bytes);
 
         pthread_cond_signal(&conn->cond_send);
         pthread_cond_signal(&conn->cond_recv);
@@ -131,8 +132,7 @@ void* receiver_thread(void* arg) {
     }
 }
 
-#define MAX_RETRIES 5
-#define RTO_MS 200
+
 
 void* sender_thread(void* arg) {
     Connection* conn = (Connection*)arg;

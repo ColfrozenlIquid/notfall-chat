@@ -1,12 +1,17 @@
 #include <arpa/inet.h>
+#include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include "client.h"
+#include "connection.h"
 #include "server.h"
 
 int connect_to_server(const char* server_ip, int port, Connection* conn) {
@@ -62,7 +67,43 @@ int connect_to_server(const char* server_ip, int port, Connection* conn) {
 
     printf("connection established\n");
 
+    while(1) {
+        int len = 0;
+        uint8_t* input = read_input(&len);
+        if(!input) break;
+        write_to_connection(conn, input, len);
+        free(input);
+    }
+
     pthread_join(recv_tid, NULL);
     pthread_join(send_tid, NULL);
     return 0;
+}
+
+uint8_t* read_input(int* out_len) {
+    size_t capacity = 64;
+    size_t length = 0;
+    uint8_t* buf = (uint8_t*)malloc(capacity);
+    if (!buf) {
+        if (out_len) *out_len = 0;
+        return NULL;
+    }
+
+    int c;
+    while((c = getchar()) != '\n' && c != EOF) {
+        if (length + 1 >= capacity) {
+            capacity *= 2;
+            uint8_t* tmp = (uint8_t*)realloc(buf, capacity);
+            if (!tmp) {
+                free(buf);
+                if (out_len) *out_len = 0;
+                return NULL;
+            }
+            buf = tmp;
+        }
+        buf[length++] = (char)c;
+    }
+    buf[length] = '\0';
+    if (out_len) *out_len = (int)length;
+    return buf;
 }

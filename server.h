@@ -6,10 +6,12 @@
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
+#define MAX_RETRIES 5
+#define RTO_MS 200
 
 int run_server(int port);
 
-void handle_packet(Connection* conn, const uint8_t* buf, size_t buf_len);
+void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len);
 
 void* receiver_thread(void* arg);
 
