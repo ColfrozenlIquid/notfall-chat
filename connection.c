@@ -5,10 +5,12 @@
 #include <sys/socket.h>
 #include <time.h>
 #include "packet.h"
+#include "ringbuffer.h"
 #include <stdint.h>
 #include <unistd.h>
 
 #include "connection.h"
+#include "ringbuffer.h"
 
 
 bool fsm_dispatch(Connection* conn, Event event) {
@@ -88,8 +90,10 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
         pthread_cond_wait(&conn->cond_send, &conn->mutex);
     }
 
-    memcpy(conn->snd_buf + conn->snd_len, header, 4);
-    memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
+    // memcpy(conn->snd_buf + conn->snd_len, header, 4);
+    // memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
+    rb_write(&conn->snd_buf, header, 4);
+    rb_write(&conn->snd_buf, data, data_len);
     conn->snd_len = total_len;
 
     pthread_mutex_unlock(&conn->mutex);

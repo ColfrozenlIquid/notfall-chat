@@ -12,6 +12,7 @@ set(COMMON_SOURCES
 add_executable(server
     main_server.c
     server.c
+    ringbuffer.c
     ${COMMON_SOURCES}
 )
 
@@ -19,5 +20,6 @@ add_executable(client
     main_client.c
     client.c
     server.c
+    ringbuffer.c
     ${COMMON_SOURCES}
 )

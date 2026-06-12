@@ -14,6 +14,7 @@
 
 #include "server.h"
 #include "connection.h"
+#include "ringbuffer.h"
 
 
 
@@ -43,6 +44,9 @@ int run_server(int port) {
     Connection conn = {0};
     conn.sockfd = sockfd;
     conn.state = LISTEN;
+    rb_init(&conn.snd_buf);
+    rb_init(&conn.rcv_buf);
+
     pthread_mutex_init(&conn.mutex, NULL);
     pthread_cond_init(&conn.cond_recv, NULL);
     pthread_cond_init(&conn.cond_send, NULL);
@@ -81,7 +85,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + 1;
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
-        memcpy(conn->rcv_buf, packet.data, packet.data_len);
+        // memcpy(conn->rcv_buf, packet.data, packet.data_len);
+        rb_write(&conn->rcv_buf, packet.data, packet.data_len);
         conn->rcv_len = packet.data_len;
         pthread_cond_signal(&conn->cond_recv);
         send_ack(conn);
@@ -142,8 +147,6 @@ void* receiver_thread(void* arg) {
     }
 }
 
-
-
 void* sender_thread(void* arg) {
     Connection* conn = (Connection*)arg;
 
@@ -158,7 +161,8 @@ void* sender_thread(void* arg) {
         size_t len = conn->snd_len;
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
-        memcpy(buf, conn->snd_buf, len);
+        // memcpy(buf, conn->snd_buf, len);
+        rb_consume(&conn->snd_buf, buf);
 
         pthread_mutex_unlock(&conn->mutex);
         send_segment(conn, FLAG_ACK, seq, ack, buf, len);

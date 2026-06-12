@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "ringbuffer.h"
+
 typedef enum {
     CLOSED,
     LISTEN,
@@ -64,9 +66,9 @@ typedef struct {
     uint32_t snd_ack;   // last ACK number we received
     uint32_t rcv_seq;   // next SEQ number we expect to receive
 
-    uint8_t snd_buf[SND_BUFFER_SIZE];
+    RingBuffer snd_buf;
     size_t snd_len;
-    uint8_t rcv_buf[RCV_BUFFER_SIZE];
+    RingBuffer rcv_buf;
     size_t rcv_len;
 
     struct timespec time_wait_start;
