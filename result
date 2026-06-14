@@ -1,0 +1,23 @@
+waiting for packet...
+broadcasting to 255.255.255.255:5005
+got 46 bytes
+packet received from 192.168.1.107
+callback fired: daniel @ 192.168.1.107:50000
+waiting for packet...
+got 46 bytes
+packet received from 192.168.1.222
+callback fired: pop-os @ 192.168.1.222:50000
+waiting for packet...
+broadcasting to 255.255.255.255:5005
+got 46 bytes
+packet received from 192.168.1.107
+callback fired: daniel @ 192.168.1.107:50000
+waiting for packet...
+got 46 bytes
+packet received from 192.168.1.222
+callback fired: pop-os @ 192.168.1.222:50000
+waiting for packet...
+broadcasting to 255.255.255.255:5005
+got 46 bytes
+packet received from 192.168.1.107
+callback fired: daniel @ 192.168.1.107:50000
