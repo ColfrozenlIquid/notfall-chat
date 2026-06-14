@@ -16,8 +16,6 @@
 #include "connection.h"
 #include "ringbuffer.h"
 
-
-
 int run_server(int port) {
     int sockfd;
     struct sockaddr_in server_addr;

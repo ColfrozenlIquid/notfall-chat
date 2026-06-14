@@ -32,13 +32,13 @@ int connect_to_server(const char* server_ip, int port, Connection* conn) {
     }
 
     struct sockaddr_in server_addr = {0};
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port   = htons(port);
-        if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-            perror("inet_pton");
-            close(sockfd);
-            return -1;
-        }
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port   = htons(port);
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+        perror("inet_pton");
+        close(sockfd);
+        return -1;
+    }
 
     memset(conn, 0, sizeof(*conn));
     conn->sockfd    = sockfd;
