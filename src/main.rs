@@ -252,7 +252,7 @@ fn main() -> iced::Result {
 
     // spawn broadcaster — it loops forever so it needs its own thread
     std::thread::spawn(|| {
-        broadcast_discover("daniel".to_string(), 50000);
+        broadcast_discover("pop-os".to_string(), 50000);
     });
 
     unsafe { ffi::discovery_listener_start() };
