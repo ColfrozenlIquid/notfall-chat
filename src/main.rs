@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use iced::{
-    Element, Font, Size, Task, Theme,
-    widget::{column, container, text},
+    Element, Font, Length, Size, Task, Theme,
+    widget::{button, column, container, row, text},
     window::Settings,
 };
 use std::{
@@ -185,11 +185,6 @@ fn get_network_devices() -> Vec<NetworkDevice> {
     let mut buf: [ffi::C_NetworkDevice; MAX_DEVICES] = unsafe { std::mem::zeroed() };
     let count = unsafe { ffi::get_network_devices(buf.as_mut_ptr(), MAX_DEVICES) };
 
-    if count < 0 {
-        eprintln!("get_network_devices failed");
-        return Vec::new();
-    }
-
     let mut result = Vec::with_capacity(count);
     for dev in &buf[..count as usize] {
         let name = unsafe { CStr::from_ptr(dev.name.as_ptr()) }
@@ -206,45 +201,6 @@ fn get_network_devices() -> Vec<NetworkDevice> {
     }
     result
 }
-
-// fn main() -> iced::Result {
-//     let devices = get_network_devices();
-//     println!("Network Devices: {:?}", devices);
-
-//     broadcast_discover("daniel".to_string(), 50000);
-
-//     unsafe {
-//         ffi::discovery_listener_start();
-//     }
-
-//     let mut tracker = PeerTracker::new(Duration::from_secs(30));
-//     let handle = std::thread::spawn(move || {
-//         run_discovery(&mut tracker);
-//     });
-
-//     handle.join().unwrap();
-
-//     // let mut app = iced::application(App::new, App::update, App::view)
-//     //     .window(Settings {
-//     //         size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-//     //         decorations: true,
-//     //         position: iced::window::Position::Centered,
-//     //         resizable: true,
-//     //         blur: true,
-//     //         transparent: true,
-//     //         ..Default::default()
-//     //     })
-//     //     .theme(App::theme)
-//     //     .default_font(Font::MONOSPACE);
-
-//     // for (_, bytes) in FONTS {
-//     //     app = app.font(bytes.iter().as_slice());
-//     // }
-
-//     // let _ = app.default_font(Font::with_name("JetBrains Mono")).run();
-
-//     Ok(())
-// }
 
 fn main() -> iced::Result {
     let devices = get_network_devices();
@@ -271,10 +227,33 @@ fn main() -> iced::Result {
         }
     });
 
-    // keep main alive for now
-    loop {
-        std::thread::sleep(Duration::from_secs(1));
+    let tracker_clone = Arc::clone(&tracker);
+
+    let mut app = iced::application(
+        move || App::new(Arc::clone(&tracker_clone)),
+        App::update,
+        App::view,
+    )
+    .window(Settings {
+        size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+        decorations: true,
+        position: iced::window::Position::Centered,
+        resizable: true,
+        blur: true,
+        transparent: true,
+        ..Default::default()
+    })
+    .subscription(App::subscription)
+    .theme(App::theme)
+    .default_font(Font::MONOSPACE);
+
+    for (_, bytes) in FONTS {
+        app = app.font(bytes.iter().as_slice());
     }
+
+    let _ = app.default_font(Font::with_name("JetBrains Mono")).run();
+
+    Ok(())
 }
 
 pub struct MessageHistory {
@@ -296,26 +275,56 @@ pub enum User {
 pub struct App {
     addr: String,
     port: u16,
+    tracker: Arc<Mutex<PeerTracker>>,
+    peers: Vec<DiscoveredPeer>,
 }
 
-pub enum Message {}
+#[derive(Debug, Clone)]
+pub enum Message {
+    PeerClicked(String),
+    Tick,
+}
 
 impl App {
-    fn new() -> (Self, Task<Message>) {
+    fn new(tracker: Arc<Mutex<PeerTracker>>) -> (Self, Task<Message>) {
         let app = App {
-            addr: todo!(),
-            port: todo!(),
+            addr: String::new(),
+            port: 0,
+            tracker,
+            peers: vec![],
         };
         (app, Task::none())
     }
 
     fn update(&mut self, msg: Message) -> Task<Message> {
+        match msg {
+            Message::PeerClicked(peer) => println!("pressed on {:?}", peer),
+            Message::Tick => {
+                if let Ok(t) = self.tracker.lock() {
+                    self.peers = t.peers().cloned().collect();
+                }
+            }
+        }
         Task::none()
     }
 
+    fn subscription(&self) -> iced::Subscription<Message> {
+        iced::time::every(Duration::from_millis(500)).map(|_| Message::Tick)
+    }
+
     fn view(&self) -> Element<'_, Message> {
-        let header = column![text!("Hello World").size(TEXT_SIZE)].padding(PADDING);
-        container(header).into()
+        let peer_list = self.peers.iter().fold(column![].spacing(8), |col, peer| {
+            col.push(text(format!("{} @ {}", peer.name, peer.ip)).size(TEXT_SIZE))
+                .width(Length::Fill)
+        });
+
+        let layout = row![
+            column![peer_list].width(Length::Fill),
+            column![text!("Column 2").size(TEXT_SIZE)].width(Length::Fill)
+        ]
+        .padding(PADDING);
+
+        container(layout).width(Length::Fill).into()
     }
 
     fn theme(_: &App) -> Theme {
