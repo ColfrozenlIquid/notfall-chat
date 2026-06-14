@@ -4,7 +4,13 @@ use iced::{
     widget::{column, container, text},
     window::Settings,
 };
-use std::{ffi::CStr, io::Error};
+use std::{
+    collections::HashMap,
+    ffi::CStr,
+    io::Error,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 const WINDOW_WIDTH: f32 = 1400.0;
 const WINDOW_HEIGHT: f32 = 1400.0;
@@ -28,7 +34,8 @@ mod ffi {
 
     pub const DEVICE_NAME_LEN: usize = 16;
     pub const DEVICE_ADDR_LEN: usize = 46;
-    pub const NAME_LEN: usize = 32;
+    pub const DISCOVERY_NAME_LEN: usize = 32;
+    pub const INET_ADDRSTRLEN: usize = 16;
 
     #[repr(C)]
     pub struct C_NetworkDevice {
@@ -37,9 +44,118 @@ mod ffi {
         pub is_ipv6: i32,
     }
 
+    #[repr(C)]
+    pub struct C_DiscoveredPeer {
+        pub timestamp: u64,
+        pub port: u16,
+        pub sender_ip: [c_char; INET_ADDRSTRLEN],
+        pub name: [u8; DISCOVERY_NAME_LEN],
+    }
+
     unsafe extern "C" {
         pub fn get_network_devices(devices: *mut C_NetworkDevice, len: usize) -> usize;
         pub fn broadcast_discovery(name: *mut u8, name_len: usize, tcp_port: u16) -> i32;
+        pub fn discovery_listener_start();
+        pub fn discovery_listener_pop(out: *mut C_DiscoveredPeer) -> i32;
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PeerKey {
+    pub ip: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DiscoveredPeer {
+    pub ip: String,
+    pub name: String,
+    pub port: u16,
+    pub first_seen: Instant,
+    pub last_seen: Instant,
+}
+
+pub struct PeerTracker {
+    peers: HashMap<PeerKey, DiscoveredPeer>,
+    ttl: Duration,
+}
+
+impl PeerTracker {
+    fn new(ttl: Duration) -> Self {
+        Self {
+            peers: HashMap::new(),
+            ttl,
+        }
+    }
+
+    pub fn poll(&mut self) {
+        loop {
+            let mut raw: ffi::C_DiscoveredPeer = unsafe { std::mem::zeroed() };
+
+            let result = unsafe { ffi::discovery_listener_pop(std::ptr::addr_of_mut!(raw)) };
+
+            if result != 0 {
+                break;
+            }
+
+            let ip = unsafe {
+                CStr::from_ptr(raw.sender_ip.as_ptr())
+                    .to_string_lossy()
+                    .into_owned()
+            };
+
+            let name = raw
+                .name
+                .iter()
+                .take_while(|&&b| b != 0)
+                .copied()
+                .collect::<Vec<u8>>();
+
+            let name = String::from_utf8_lossy(&name).into_owned();
+
+            let key = PeerKey {
+                ip: ip.clone(),
+                name: name.clone(),
+            };
+            let now = Instant::now();
+
+            self.peers
+                .entry(key)
+                .and_modify(|p| p.last_seen = now)
+                .or_insert_with(|| {
+                    println!("New peer: {name} @ {ip}:{}", raw.port);
+                    DiscoveredPeer {
+                        ip,
+                        name,
+                        port: raw.port,
+                        first_seen: now,
+                        last_seen: now,
+                    }
+                });
+        }
+    }
+
+    pub fn evict_stale(&mut self) {
+        let now = Instant::now();
+        self.peers.retain(|_, peer| {
+            let keep = now.duration_since(peer.last_seen) < self.ttl;
+            if !keep {
+                println!("Peer expired: {} @ {}", peer.name, peer.ip);
+            }
+            keep
+        });
+    }
+
+    pub fn peers(&self) -> impl Iterator<Item = &DiscoveredPeer> {
+        self.peers.values()
+    }
+}
+
+fn run_discovery(tracker: &mut PeerTracker) {
+    loop {
+        tracker.poll();
+        tracker.evict_stale();
+        std::thread::sleep(Duration::from_millis(500));
     }
 }
 
@@ -51,9 +167,9 @@ pub struct NetworkDevice {
 }
 
 fn broadcast_discover(name: String, tcp_port: u16) {
-    let mut buf = [0u8; ffi::NAME_LEN];
+    let mut buf = [0u8; ffi::DISCOVERY_NAME_LEN];
     let bytes = name.as_bytes();
-    let copy_len = bytes.len().min(ffi::NAME_LEN - 1);
+    let copy_len = bytes.len().min(ffi::DISCOVERY_NAME_LEN - 1);
     buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
 
     let result = unsafe { ffi::broadcast_discovery(buf.as_mut_ptr(), copy_len, tcp_port) };
@@ -91,32 +207,74 @@ fn get_network_devices() -> Vec<NetworkDevice> {
     result
 }
 
+// fn main() -> iced::Result {
+//     let devices = get_network_devices();
+//     println!("Network Devices: {:?}", devices);
+
+//     broadcast_discover("daniel".to_string(), 50000);
+
+//     unsafe {
+//         ffi::discovery_listener_start();
+//     }
+
+//     let mut tracker = PeerTracker::new(Duration::from_secs(30));
+//     let handle = std::thread::spawn(move || {
+//         run_discovery(&mut tracker);
+//     });
+
+//     handle.join().unwrap();
+
+//     // let mut app = iced::application(App::new, App::update, App::view)
+//     //     .window(Settings {
+//     //         size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+//     //         decorations: true,
+//     //         position: iced::window::Position::Centered,
+//     //         resizable: true,
+//     //         blur: true,
+//     //         transparent: true,
+//     //         ..Default::default()
+//     //     })
+//     //     .theme(App::theme)
+//     //     .default_font(Font::MONOSPACE);
+
+//     // for (_, bytes) in FONTS {
+//     //     app = app.font(bytes.iter().as_slice());
+//     // }
+
+//     // let _ = app.default_font(Font::with_name("JetBrains Mono")).run();
+
+//     Ok(())
+// }
+
 fn main() -> iced::Result {
     let devices = get_network_devices();
     println!("Network Devices: {:?}", devices);
 
-    broadcast_discover("daniel".to_string(), 50000);
+    // spawn broadcaster — it loops forever so it needs its own thread
+    std::thread::spawn(|| {
+        broadcast_discover("daniel".to_string(), 50000);
+    });
 
-    // let mut app = iced::application(App::new, App::update, App::view)
-    //     .window(Settings {
-    //         size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-    //         decorations: true,
-    //         position: iced::window::Position::Centered,
-    //         resizable: true,
-    //         blur: true,
-    //         transparent: true,
-    //         ..Default::default()
-    //     })
-    //     .theme(App::theme)
-    //     .default_font(Font::MONOSPACE);
+    unsafe { ffi::discovery_listener_start() };
 
-    // for (_, bytes) in FONTS {
-    //     app = app.font(bytes.iter().as_slice());
-    // }
+    let tracker = Arc::new(Mutex::new(PeerTracker::new(Duration::from_secs(30))));
+    let tracker_bg = Arc::clone(&tracker);
 
-    // let _ = app.default_font(Font::with_name("JetBrains Mono")).run();
+    std::thread::spawn(move || {
+        loop {
+            {
+                let mut t = tracker_bg.lock().unwrap();
+                t.poll();
+                t.evict_stale();
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+    });
 
-    Ok(())
+    // keep main alive for now
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+    }
 }
 
 pub struct MessageHistory {

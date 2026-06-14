@@ -3,6 +3,7 @@
 #include <bits/types/struct_iovec.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,13 +14,31 @@
 #include <unistd.h>
 
 #include "discovery.h"
-
-
+#include "ringbuffer_slotted.h"
 
 DiscoveryPacket discovery_packet_create() {
     DiscoveryPacket pkt = {0};
     pkt.magic_bytes = DISCOVERY_MAGIC;
     return pkt;
+}
+
+DiscoveryQueue discovery_queue_create() {
+    DiscoveryQueue queue = {};
+    RingBufferSlotted rbs;
+    rbs_init(&rbs, DISCOVERED_PEER_SIZE);
+    queue.rbs = rbs;
+    return queue;
+}
+
+void discovery_queue_callback(DiscoveredPeer* peer, void* userdata) {
+    printf("callback fired: %s @ %s:%d\n", peer->name, peer->sender_ip, peer->port);
+    fflush(stdout);
+    DiscoveryQueue* queue = (DiscoveryQueue*)userdata;
+    rbs_push(&queue->rbs, peer);
+}
+
+int discovery_queue_pop(DiscoveryQueue* q, DiscoveredPeer* out) {
+    return rbs_try_pop(&q->rbs, out);
 }
 
 int broadcast_discovery(uint8_t* name, size_t name_len, uint16_t tcp_port) {
@@ -54,6 +73,8 @@ int broadcast_discovery(uint8_t* name, size_t name_len, uint16_t tcp_port) {
 
     while(1) {
         sendto(sockfd, buf, len, 0, (struct sockaddr*)&broadcast_addr, sizeof(broadcast_addr));
+        printf("broadcasting to %s:%d\n", BROADCAST_ADDR, BROADCAST_PORT);
+        fflush(stdout);
         sleep(DISCOVER_INTERVAL_SEC);
     }
 
@@ -85,13 +106,21 @@ int listen_discovery(discovery_callback cb, void* userdata) {
         return -1;
     }
 
+    printf("listening on port %d\n", BROADCAST_PORT);
+    fflush(stdout);
+
     while (1) {
+        printf("waiting for packet...\n");
+        fflush(stdout);
         struct sockaddr_in sender = {0};
         socklen_t sender_len = sizeof(sender);
 
         uint8_t buf[DISCOVERY_PACKET_SIZE];
 
         ssize_t n = recvfrom(sockfd, buf, sizeof(buf), 0, (struct sockaddr*)&sender, &sender_len);
+
+        printf("got %zd bytes\n", n);
+        fflush(stdout);
 
         if (n < 0) {
             perror("recvfrom error");
@@ -108,7 +137,14 @@ int listen_discovery(discovery_callback cb, void* userdata) {
             continue;
         }
 
-        cb(&pkt, &sender, userdata);
+        DiscoveredPeer peer;
+        memcpy(peer.name, pkt.name, DISCOVERY_NAME_LEN);
+        peer.port = pkt.port;
+        peer.timestamp = pkt.timestamp;
+        inet_ntop(AF_INET, &sender.sin_addr, peer.sender_ip, INET_ADDRSTRLEN);
+        printf("packet received from %s\n", peer.sender_ip);
+        fflush(stdout);
+        cb(&peer, userdata);
     }
 
     close(sockfd);
