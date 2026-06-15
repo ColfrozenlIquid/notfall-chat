@@ -7,8 +7,8 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use iced::{
-    Element, Font, Length, Size, Task, Theme,
-    widget::{self, button, column, container, row, text},
+    Color, Element, Font, Length, Size, Task, Theme,
+    widget::{self, button, column, container, row, text, text_input},
     window::Settings,
 };
 
@@ -35,6 +35,7 @@ const FONTS: &[(&str, &[u8])] = &[
 ];
 
 pub struct App {
+    name: String,
     addr: String,
     port: u16,
     tracker: std::sync::Arc<Mutex<PeerTracker>>,
@@ -42,23 +43,26 @@ pub struct App {
     connections: HashMap<String, ConnectionHandle>,
     messages: HashMap<String, Vec<UserMessage>>,
     selected_peer: Option<String>,
+    content: String,
 }
 
 #[derive(Clone)]
 pub enum Message {
     PeerClicked(String),
     Tick,
-    PeerConnect(String),
+    PeerConnect(String, String),
     Connected(ConnectionHandle, String),
     ConnectFailed(String),
+    ContentChanged(String),
+    SendMessage,
 }
 
 pub struct MessageHistory {
     messages: Vec<UserMessage>,
 }
 
+#[derive(Debug, Clone)]
 pub struct UserMessage {
-    id: String,
     timestamp: DateTime<Utc>,
     content: String,
     user: String,
@@ -70,8 +74,9 @@ pub enum User {
 }
 
 impl App {
-    fn new(tracker: Arc<Mutex<PeerTracker>>) -> (Self, Task<Message>) {
+    fn new(tracker: Arc<Mutex<PeerTracker>>, name: String) -> (Self, Task<Message>) {
         let app = App {
+            name,
             addr: String::new(),
             port: 0,
             tracker,
@@ -79,6 +84,7 @@ impl App {
             connections: HashMap::new(),
             messages: HashMap::new(),
             selected_peer: None,
+            content: String::new(),
         };
         (app, Task::none())
     }
@@ -91,12 +97,13 @@ impl App {
                     self.peers = t.peers().cloned().collect();
                 }
             }
-            Message::PeerConnect(peer_ip) => {
-                let peer_ip_clone = peer_ip.clone();
+            Message::PeerConnect(peer_name, peer_ip) => {
+                self.selected_peer = Some(peer_name.clone());
+
                 return Task::perform(
-                    async move { ConnectionHandle::connect(&peer_ip_clone, 12345) },
+                    async move { ConnectionHandle::connect(&peer_ip, 12345) },
                     |result| match result {
-                        Ok(handle) => Message::Connected(handle, peer_ip),
+                        Ok(handle) => Message::Connected(handle, peer_name),
                         Err(e) => Message::ConnectFailed(e),
                     },
                 );
@@ -106,6 +113,42 @@ impl App {
             }
             Message::ConnectFailed(e) => {
                 eprintln!("connection failed: {e}");
+            }
+            Message::ContentChanged(content) => {
+                self.content = content;
+            }
+            Message::SendMessage => {
+                if self.content.is_empty() {
+                    return Task::none();
+                }
+
+                let Some(peer) = self.selected_peer.clone() else {
+                    return Task::none();
+                };
+
+                let msg = UserMessage {
+                    timestamp: Utc::now(),
+                    content: self.content.clone(),
+                    user: self.name.clone(),
+                };
+
+                self.messages
+                    .entry(peer.clone())
+                    .or_default()
+                    .push(msg.clone());
+
+                self.content.clear();
+
+                if let Some(conn) = self.connections.get(&peer) {
+                    let conn = conn.clone();
+                    return Task::perform(
+                        async move { ConnectionHandle::send(&conn, &msg.content.to_string()) },
+                        |result| match result {
+                            Ok(_) => Message::Tick,
+                            Err(e) => Message::ConnectFailed(e),
+                        },
+                    );
+                }
             }
         }
         Task::none()
@@ -120,7 +163,7 @@ impl App {
             col.push(
                 button(text(format!("{} @ {}", peer.name, peer.ip)).size(TEXT_SIZE))
                     .width(Length::Fill)
-                    .on_press(Message::PeerConnect(peer.ip.clone()))
+                    .on_press(Message::PeerConnect(peer.name.clone(), peer.ip.clone()))
                     .style(widget::button::text),
             )
         });
@@ -141,10 +184,21 @@ impl App {
             });
 
         // let chat = self.text(format!("{} @ {}: {}"), )
+        //
+        let message_entry = text_input("Type something here", &self.content)
+            .on_input(Message::ContentChanged)
+            .on_submit(Message::SendMessage)
+            .size(TEXT_SIZE)
+            .style(|theme, status| {
+                let mut style = text_input::default(theme, status);
+                style.border.width = 0.0;
+                style.background = iced::Background::Color(Color::TRANSPARENT);
+                style
+            });
 
         let layout = row![
             column![peer_list].width(Length::Fill),
-            column![text("Chat").size(TEXT_SIZE), chat].width(Length::Fill)
+            column![text("Chat").size(TEXT_SIZE), chat, message_entry].width(Length::Fill)
         ]
         .padding(PADDING);
 
@@ -156,9 +210,9 @@ impl App {
     }
 }
 
-pub fn run_ui(tracker: Arc<Mutex<PeerTracker>>) -> iced::Result {
+pub fn run_ui(tracker: Arc<Mutex<PeerTracker>>, name: String) -> iced::Result {
     let mut app = iced::application(
-        move || App::new(Arc::clone(&tracker)),
+        move || App::new(Arc::clone(&tracker), name.clone()),
         App::update,
         App::view,
     )

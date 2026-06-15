@@ -1,6 +1,7 @@
 use std::{
     ffi::{CString, c_int},
     os::raw::c_char,
+    sync::Arc,
 };
 
 pub const DEVICE_NAME_LEN: usize = 16;
@@ -11,9 +12,20 @@ pub const INET_ADDRSTRLEN: usize = 16;
 pub enum Connection {}
 
 #[derive(Clone)]
-pub struct ConnectionHandle(*mut Connection);
+pub struct ConnectionHandle(Arc<ConnectionInner>);
+
+struct ConnectionInner(*mut Connection);
 
 unsafe impl Send for ConnectionHandle {}
+
+impl Drop for ConnectionInner {
+    fn drop(&mut self) {
+        unsafe { connection_destroy(self.0) };
+    }
+}
+
+unsafe impl Send for ConnectionInner {}
+unsafe impl Sync for ConnectionInner {}
 
 impl ConnectionHandle {
     pub fn connect(ip: &str, port: u16) -> Result<Self, String> {
@@ -24,7 +36,7 @@ impl ConnectionHandle {
         let ip = CString::new(ip).map_err(|e| e.to_string())?;
         let ret = unsafe { connect_to_server(ip.as_ptr(), port as c_int, conn) };
         if ret == 0 {
-            Ok(Self(conn))
+            Ok(Self(Arc::new(ConnectionInner(conn))))
         } else {
             unsafe { connection_destroy(conn) };
             Err(format!("connect_to_server returned {ret}"))
@@ -33,7 +45,7 @@ impl ConnectionHandle {
 
     pub fn send(&self, msg: &str) -> Result<(), String> {
         let bytes = msg.as_bytes();
-        let ret = unsafe { connection_send(self.0, bytes.as_ptr(), bytes.len()) };
+        let ret = unsafe { connection_send(self.0.0, bytes.as_ptr(), bytes.len()) };
         if ret == 0 {
             Ok(())
         } else {
@@ -43,15 +55,7 @@ impl ConnectionHandle {
 
     pub fn wait(self) {
         unsafe {
-            connection_wait(self.0);
-        }
-    }
-}
-
-impl Drop for ConnectionHandle {
-    fn drop(&mut self) {
-        unsafe {
-            connection_destroy(self.0);
+            connection_wait(self.0.0);
         }
     }
 }

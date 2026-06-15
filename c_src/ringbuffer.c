@@ -42,7 +42,7 @@ void rb_consume(RingBuffer* rb, uint8_t* dst) {
     }
 
     memcpy(dst, rb->data + start, first_chunk);
-    if (data_len > first_chunk) {
+    if (total > first_chunk) {
         memcpy(dst + first_chunk, rb->data, total - first_chunk);
     }
 

@@ -103,7 +103,7 @@ fn main() -> iced::Result {
 
     let tracker_clone = Arc::clone(&tracker);
 
-    let _ = run_ui(tracker_clone);
+    let _ = run_ui(tracker_clone, name);
 
     Ok(())
 }
