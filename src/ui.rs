@@ -55,6 +55,7 @@ pub enum Message {
     ConnectFailed(String),
     ContentChanged(String),
     SendMessage,
+    MessageReceived(String, String),
 }
 
 pub struct MessageHistory {
@@ -108,8 +109,22 @@ impl App {
                     },
                 );
             }
-            Message::Connected(handle, peer_ip) => {
-                self.connections.insert(peer_ip, handle);
+            Message::Connected(handle, peer_name) => {
+                let handle_clone = handle.clone();
+                self.connections.insert(peer_name.clone(), handle);
+
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || handle_clone.receive())
+                            .await
+                            .map_err(|e| e.to_string())
+                            .and_then(|r| r)
+                    },
+                    |result| match result {
+                        Ok(msg) => Message::MessageReceived(peer_name, msg),
+                        Err(e) => Message::ConnectFailed(e),
+                    },
+                );
             }
             Message::ConnectFailed(e) => {
                 eprintln!("connection failed: {e}");
@@ -145,6 +160,34 @@ impl App {
                         async move { ConnectionHandle::send(&conn, &msg.content.to_string()) },
                         |result| match result {
                             Ok(_) => Message::Tick,
+                            Err(e) => Message::ConnectFailed(e),
+                        },
+                    );
+                }
+            }
+            Message::MessageReceived(peer_name, content) => {
+                let msg = UserMessage {
+                    timestamp: Utc::now(),
+                    content,
+                    user: peer_name.clone(),
+                };
+
+                self.messages
+                    .entry(peer_name.clone())
+                    .or_default()
+                    .push(msg);
+
+                if let Some(handle) = self.connections.get(&peer_name) {
+                    let handle = handle.clone();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || handle.receive())
+                                .await
+                                .map_err(|e| e.to_string())
+                                .and_then(|r| r)
+                        },
+                        move |result| match result {
+                            Ok(msg) => Message::MessageReceived(peer_name.clone(), msg),
                             Err(e) => Message::ConnectFailed(e),
                         },
                     );

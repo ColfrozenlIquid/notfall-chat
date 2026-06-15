@@ -1,5 +1,4 @@
 #pragma once
-
 #include <bits/pthreadtypes.h>
 #include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
@@ -102,6 +101,8 @@ Connection* connection_create(void);
 void connection_destroy(Connection* conn);
 
 int connection_send(Connection* conn, const uint8_t* data, size_t len);
+
+int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len);
 
 void connection_wait(Connection* conn);
 

@@ -58,6 +58,17 @@ impl ConnectionHandle {
             connection_wait(self.0.0);
         }
     }
+
+    pub fn receive(&self) -> Result<String, String> {
+        let mut buf = vec![0u8; 8192];
+        let mut len: usize = 0;
+        let ret = unsafe { connection_receive(self.0.0, buf.as_mut_ptr(), &mut len) };
+        if ret != 0 {
+            return Err(format!("connection_recv failed: {ret}"));
+        }
+        buf.truncate(len);
+        String::from_utf8(buf).map_err(|e| e.to_string())
+    }
 }
 
 #[repr(C)]
@@ -87,4 +98,5 @@ unsafe extern "C" {
     pub fn connect_to_server(ip: *const c_char, port: i32, conn: *mut Connection) -> i32;
     pub fn connection_send(conn: *mut Connection, data: *const u8, len: usize) -> i32;
     pub fn connection_wait(conn: *mut Connection);
+    pub fn connection_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
 }

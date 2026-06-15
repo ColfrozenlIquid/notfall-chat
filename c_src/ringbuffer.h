@@ -18,3 +18,5 @@ void rb_write(RingBuffer* rb, const uint8_t* data, size_t len);
 size_t rb_free_space(RingBuffer* rb);
 
 void rb_consume(RingBuffer* rb, uint8_t* dst);
+
+uint32_t rb_peek_len(RingBuffer* rb);

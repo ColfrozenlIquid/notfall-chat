@@ -58,3 +58,10 @@ void rb_consume(RingBuffer* rb, uint8_t* dst) {
 size_t rb_free_space(RingBuffer* rb) {
     return RING_BUFFER_SIZE - rb->count;
 }
+
+uint32_t rb_peek_len(RingBuffer* rb) {
+    return ((uint32_t)rb->data[rb->tail] << 24)
+         | ((uint32_t)rb->data[(rb->tail + 1) % RING_BUFFER_SIZE] << 16)
+         | ((uint32_t)rb->data[(rb->tail + 2) % RING_BUFFER_SIZE] << 8)
+         | ((uint32_t)rb->data[(rb->tail + 3) % RING_BUFFER_SIZE]);
+}
