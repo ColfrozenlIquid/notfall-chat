@@ -6,6 +6,7 @@ use iced::{
 };
 use std::{
     collections::HashMap,
+    env,
     ffi::CStr,
     io::Error,
     sync::{Arc, Mutex},
@@ -203,12 +204,23 @@ fn get_network_devices() -> Vec<NetworkDevice> {
 }
 
 fn main() -> iced::Result {
+    let args: Vec<String> = env::args().collect();
+    let headless = args.contains(&"--headless".to_string());
+    let name = args
+        .windows(2)
+        .find(|w| w[0] == "--name")
+        .map(|w| w[1].clone())
+        .unwrap_or_else(|| "name".to_string());
+
     let devices = get_network_devices();
     println!("Network Devices: {:?}", devices);
 
     // spawn broadcaster — it loops forever so it needs its own thread
-    std::thread::spawn(|| {
-        broadcast_discover("pop-os".to_string(), 50000);
+    std::thread::spawn({
+        let name = name.clone();
+        move || {
+            broadcast_discover(name, 50000);
+        }
     });
 
     unsafe { ffi::discovery_listener_start() };
@@ -226,6 +238,13 @@ fn main() -> iced::Result {
             std::thread::sleep(Duration::from_millis(500));
         }
     });
+
+    if headless {
+        println!("Running in headless mode as '{name}'. Press Ctrl+C to exit.");
+        loop {
+            std::thread::sleep(Duration::from_secs(60));
+        }
+    }
 
     let tracker_clone = Arc::clone(&tracker);
 
