@@ -12,6 +12,33 @@
 #include "connection.h"
 #include "ringbuffer.h"
 
+Connection* connection_create(void) {
+    Connection* conn = calloc(1, sizeof(Connection));
+    if (!conn) return NULL;
+    pthread_mutex_init(&conn->mutex, NULL);
+    pthread_cond_init(&conn->cond_send, NULL);
+    pthread_cond_init(&conn->cond_recv, NULL);
+    return conn;
+}
+
+void connection_destroy(Connection* conn) {
+    if (!conn) return;
+    pthread_mutex_destroy(&conn->mutex);
+    pthread_cond_destroy(&conn->cond_send);
+    pthread_cond_destroy(&conn->cond_recv);
+    free(conn);
+}
+
+int connection_send(Connection* conn, const uint8_t* data, size_t len) {
+    if (!conn || !data) return -1;
+    write_to_connection(conn, (uint8_t*)data, len);
+    return 0;
+}
+
+void connection_wait(Connection* conn) {
+    pthread_join(conn->recv_tid, NULL);
+    pthread_join(conn->send_tid, NULL);
+}
 
 bool fsm_dispatch(Connection* conn, Event event) {
     for (size_t i = 0; i < sizeof(transitions)/sizeof(transitions[0]); i++) {

@@ -97,6 +97,14 @@ typedef struct {
     ActionFn action;
 } Transition;
 
+Connection* connection_create(void);
+
+void connection_destroy(Connection* conn);
+
+int connection_send(Connection* conn, const uint8_t* data, size_t len);
+
+void connection_wait(Connection* conn);
+
 bool fsm_dispatch(Connection* conn, Event event);
 
 void send_syn(Connection* conn);

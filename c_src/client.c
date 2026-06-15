@@ -69,8 +69,6 @@ int connect_to_server(const char* server_ip, int port, Connection* conn) {
     pthread_mutex_unlock(&conn->mutex);
     printf("connection established\n");
 
-
-
     return 0;
 }
 
