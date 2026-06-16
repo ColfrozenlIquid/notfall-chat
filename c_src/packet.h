@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define PACKET_DATA_SIZE 512
+#define PACKET_DATA_SIZE 20
 
 #define FLAG_SYN 0x0001
 #define FLAG_ACK 0x0002

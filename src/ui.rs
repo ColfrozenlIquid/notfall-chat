@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    hash::Hash,
-    sync::{Arc, Mutex, mpsc::Receiver},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 

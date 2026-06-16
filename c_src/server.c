@@ -162,7 +162,8 @@ void* sender_thread(void* arg) {
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
         // memcpy(buf, conn->snd_buf, len);
-        uint32_t len = rb_peek(&conn->snd_buf, buf, conn->snd_len);
+        size_t peek_len = conn->snd_len > PACKET_DATA_SIZE ? PACKET_DATA_SIZE : conn->snd_len;
+        uint32_t len = rb_peek(&conn->snd_buf, buf, peek_len);
 
         printf("Sender thread buffer data len: %u\n", len);
         for (int i = 0; i < len; i++) {
@@ -197,9 +198,9 @@ void* sender_thread(void* arg) {
         }
 
         if (conn->snd_ack == expected_ack) {
-            rb_advance(&conn->snd_buf, len);
+            rb_advance(&conn->snd_buf, peek_len);
             conn->snd_seq += len;
-            conn->snd_len = 0;
+            conn->snd_len -= peek_len;
         } else {
             fprintf(stderr, "send failed after %d retries\n", MAX_RETRIES);
         }

@@ -60,22 +60,15 @@ uint32_t rb_peek_len(RingBuffer* rb) {
 }
 
 size_t rb_peek(RingBuffer* rb, uint8_t* dst, size_t len) {
-    uint32_t data_len = ((uint32_t)rb->data[rb->tail] << 24)
-        |   ((uint32_t)rb->data[(rb->tail + 1) % RING_BUFFER_SIZE] << 16)
-        |   ((uint32_t)rb->data[(rb->tail + 2) % RING_BUFFER_SIZE] << 8)
-        |   ((uint32_t)rb->data[(rb->tail + 3) % RING_BUFFER_SIZE]);
-    size_t total = 4 + data_len;          // header + payload
-    size_t start = rb->tail % RING_BUFFER_SIZE;
+    if (len > rb->count) len = rb->count;
+    size_t start = rb->tail;
     size_t first_chunk = RING_BUFFER_SIZE - start;
-    if (first_chunk > total) {
-        first_chunk = total;
-    }
+    if (first_chunk > len) first_chunk = len;
     memcpy(dst, rb->data + start, first_chunk);
-    if (total > first_chunk) {
-        memcpy(dst + first_chunk, rb->data, total - first_chunk);
+    if (len > first_chunk) {
+        memcpy(dst + first_chunk, rb->data, len - first_chunk);
     }
-
-    return total;
+    return len;
 }
 
 void rb_advance(RingBuffer* rb, size_t len) {
