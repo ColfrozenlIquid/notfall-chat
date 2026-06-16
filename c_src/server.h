@@ -1,5 +1,4 @@
 #pragma once
-
 #include "packet.h"
 #include "connection.h"
 #include <stdint.h>

@@ -10,7 +10,6 @@
 
 #include "ringbuffer.h"
 
-
 typedef enum {
     CLOSED,
     LISTEN,

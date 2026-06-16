@@ -86,13 +86,13 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + 1;
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
-        uint8_t header[4] = {
-            (packet.data_len >> 24) & 0xFF,
-            (packet.data_len >> 16) & 0xFF,
-            (packet.data_len >> 8)  & 0xFF,
-             packet.data_len        & 0xFF,
-        };
-        rb_write(&conn->rcv_buf, header, 4);
+        // uint8_t header[4] = {
+        //     (packet.data_len >> 24) & 0xFF,
+        //     (packet.data_len >> 16) & 0xFF,
+        //     (packet.data_len >> 8)  & 0xFF,
+        //      packet.data_len        & 0xFF,
+        // };
+        // rb_write(&conn->rcv_buf, header, 4);
         rb_write(&conn->rcv_buf, packet.data, packet.data_len);
         pthread_cond_signal(&conn->cond_recv);
 
