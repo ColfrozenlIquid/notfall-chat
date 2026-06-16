@@ -58,3 +58,55 @@ uint32_t rb_peek_len(RingBuffer* rb) {
          | ((uint32_t)rb->data[(rb->tail + 2) % RING_BUFFER_SIZE] << 8)
          | ((uint32_t)rb->data[(rb->tail + 3) % RING_BUFFER_SIZE]);
 }
+
+size_t rb_peek(RingBuffer* rb, uint8_t* dst, size_t len) {
+    uint32_t data_len = ((uint32_t)rb->data[rb->tail] << 24)
+        |   ((uint32_t)rb->data[(rb->tail + 1) % RING_BUFFER_SIZE] << 16)
+        |   ((uint32_t)rb->data[(rb->tail + 2) % RING_BUFFER_SIZE] << 8)
+        |   ((uint32_t)rb->data[(rb->tail + 3) % RING_BUFFER_SIZE]);
+    size_t total = 4 + data_len;          // header + payload
+    size_t start = rb->tail % RING_BUFFER_SIZE;
+    size_t first_chunk = RING_BUFFER_SIZE - start;
+    if (first_chunk > total) {
+        first_chunk = total;
+    }
+    memcpy(dst, rb->data + start, first_chunk);
+    if (total > first_chunk) {
+        memcpy(dst + first_chunk, rb->data, total - first_chunk);
+    }
+
+    return total;
+}
+
+void rb_advance(RingBuffer* rb, size_t len) {
+    rb->tail = (rb->tail + len) % RING_BUFFER_SIZE;
+    rb->count -= len;
+}
+
+bool rb_is_empty(RingBuffer* rb) {
+    return rb->count == 0;
+}
+
+size_t rb_used(RingBuffer* rb) {
+    return rb->count;
+}
+
+void rb_read_message(RingBuffer* rb, uint8_t* dst, size_t* out_len) {
+    uint32_t data_len = rb_peek_len(rb);
+
+    rb->tail = (rb->tail + 4) % RING_BUFFER_SIZE;
+    rb->count -= 4;
+
+    size_t start = rb->tail;
+    size_t first_chunk = RING_BUFFER_SIZE - start;
+    if (first_chunk > data_len) first_chunk = data_len;
+
+    memcpy(dst, rb->data + start, first_chunk);
+    if (data_len > first_chunk) {
+        memcpy(dst + first_chunk, rb->data, data_len - first_chunk);
+    }
+
+    rb->tail = (rb->tail + data_len) % RING_BUFFER_SIZE;
+    rb->count -= data_len;
+    *out_len = data_len;
+}

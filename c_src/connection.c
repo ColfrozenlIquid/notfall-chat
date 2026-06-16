@@ -37,15 +37,10 @@ int connection_send(Connection* conn, const uint8_t* data, size_t len) {
 
 int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     pthread_mutex_lock(&conn->mutex);
-    while (conn->rcv_len == 0) {
+    while (rb_is_empty(&conn->rcv_buf)) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
-    uint32_t data_len = rb_peek_len(&conn->rcv_buf);
-    uint8_t buf[8192];
-    rb_consume(&conn->rcv_buf, buf);
-    memcpy(dst, buf + 4, data_len);
-    *out_len = data_len;
-    conn->rcv_len = 0;
+    rb_read_message(&conn->rcv_buf, dst, out_len);
     pthread_mutex_unlock(&conn->mutex);
     return 0;
 }

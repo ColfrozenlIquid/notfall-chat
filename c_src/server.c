@@ -1,3 +1,4 @@
+#include <asm-generic/errno.h>
 #include <bits/time.h>
 #include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
@@ -11,7 +12,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <errno.h>
 
 #include "server.h"
 #include "connection.h"
@@ -40,7 +40,6 @@ int run_server(int port, on_accept_cb cb, void* userdata){
 
     printf("UDP server socket listening on port: %d\n", port);
 
-    // Connection conn = {0};
     Connection* conn = calloc(1, sizeof(Connection));
     conn->on_accept = cb;
     conn->on_accept_userdata = userdata;
@@ -88,7 +87,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
         rb_write(&conn->rcv_buf, packet.data, packet.data_len);
-        conn->rcv_len = packet.data_len;
+        pthread_cond_signal(&conn->cond_recv);
+
         pthread_cond_signal(&conn->cond_recv);
         send_ack(conn);
     }
@@ -159,11 +159,16 @@ void* sender_thread(void* arg) {
         }
 
         uint8_t buf[BUFFER_SIZE];
-        size_t len = conn->snd_len;
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
         // memcpy(buf, conn->snd_buf, len);
-        rb_consume(&conn->snd_buf, buf);
+        uint32_t len = rb_peek(&conn->snd_buf, buf, conn->snd_len);
+
+        printf("Sender thread buffer data len: %u\n", len);
+        for (int i = 0; i < len; i++) {
+            printf("[%hhu]", buf[i]);
+        }
+        printf("\n");
 
         pthread_mutex_unlock(&conn->mutex);
         send_segment(conn, FLAG_ACK, seq, ack, buf, len);
@@ -192,6 +197,7 @@ void* sender_thread(void* arg) {
         }
 
         if (conn->snd_ack == expected_ack) {
+            rb_advance(&conn->snd_buf, len);
             conn->snd_seq += len;
             conn->snd_len = 0;
         } else {

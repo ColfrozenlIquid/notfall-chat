@@ -1,6 +1,7 @@
 #include "discovery_listener.h"
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 static DiscoveryQueue* g_queue = NULL;

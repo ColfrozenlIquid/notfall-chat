@@ -1,7 +1,6 @@
 #pragma once
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <stdlib.h>
 #include <netinet/in.h>
 
 #define DEVICE_NAME_LEN IFNAMSIZ  // IFNAMESIZ = 16
