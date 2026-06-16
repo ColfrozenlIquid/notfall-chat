@@ -97,11 +97,9 @@ size_t rb_used(RingBuffer* rb) {
 void rb_read_message(RingBuffer* rb, uint8_t* dst, size_t* out_len) {
     uint32_t data_len = rb_peek_len(rb);
 
-    // skip the 4 byte header
     rb->tail = (rb->tail + 4) % RING_BUFFER_SIZE;
     rb->count -= 4;
 
-    // read just the payload
     size_t start = rb->tail;
     size_t first_chunk = RING_BUFFER_SIZE - start;
     if (first_chunk > data_len) first_chunk = data_len;

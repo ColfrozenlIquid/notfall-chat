@@ -137,7 +137,7 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
     // memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
     rb_write(&conn->snd_buf, header, 4);
     rb_write(&conn->snd_buf, data, data_len);
-    conn->snd_len = total_len;
+    conn->snd_len += total_len;
 
     pthread_mutex_unlock(&conn->mutex);
     pthread_cond_signal(&conn->cond_send);

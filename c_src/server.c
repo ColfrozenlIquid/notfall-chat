@@ -159,13 +159,12 @@ void* sender_thread(void* arg) {
         }
 
         uint8_t buf[BUFFER_SIZE];
-        size_t len = rb_peek_len(&conn->snd_buf);
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
         // memcpy(buf, conn->snd_buf, len);
-        rb_peek(&conn->snd_buf, buf, len);
+        uint32_t len = rb_peek(&conn->snd_buf, buf, conn->snd_len);
 
-        printf("Sender thread buffer data len: %zu\n", len);
+        printf("Sender thread buffer data len: %u\n", len);
         for (int i = 0; i < len; i++) {
             printf("[%hhu]", buf[i]);
         }
