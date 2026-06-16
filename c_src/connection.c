@@ -40,8 +40,9 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     while (conn->rcv_len == 0) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
-    *out_len = rb_peek_len(&conn->rcv_buf);
+    uint32_t data_len = rb_peek_len(&conn->rcv_buf);
     rb_consume(&conn->rcv_buf, dst);
+    *out_len = data_len;
     conn->rcv_len = 0;
     pthread_mutex_unlock(&conn->mutex);
     return 0;
