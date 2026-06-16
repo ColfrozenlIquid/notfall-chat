@@ -71,31 +71,3 @@ int connect_to_server(const char* server_ip, int port, Connection* conn) {
 
     return 0;
 }
-
-uint8_t* read_input(int* out_len) {
-    size_t capacity = 64;
-    size_t length = 0;
-    uint8_t* buf = (uint8_t*)malloc(capacity);
-    if (!buf) {
-        if (out_len) *out_len = 0;
-        return NULL;
-    }
-
-    int c;
-    while((c = getchar()) != '\n' && c != EOF) {
-        if (length + 1 >= capacity) {
-            capacity *= 2;
-            uint8_t* tmp = (uint8_t*)realloc(buf, capacity);
-            if (!tmp) {
-                free(buf);
-                if (out_len) *out_len = 0;
-                return NULL;
-            }
-            buf = tmp;
-        }
-        buf[length++] = (char)c;
-    }
-    buf[length] = '\0';
-    if (out_len) *out_len = (int)length;
-    return buf;
-}

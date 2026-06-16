@@ -40,7 +40,6 @@ int run_server(int port, on_accept_cb cb, void* userdata){
 
     printf("UDP server socket listening on port: %d\n", port);
 
-    // Connection conn = {0};
     Connection* conn = calloc(1, sizeof(Connection));
     conn->on_accept = cb;
     conn->on_accept_userdata = userdata;
@@ -87,8 +86,16 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + 1;
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
+        uint8_t header[4] = {
+            (packet.data_len >> 24) & 0xFF,
+            (packet.data_len >> 16) & 0xFF,
+            (packet.data_len >> 8)  & 0xFF,
+             packet.data_len        & 0xFF,
+        };
+        rb_write(&conn->rcv_buf, header, 4);
         rb_write(&conn->rcv_buf, packet.data, packet.data_len);
-        conn->rcv_len = packet.data_len;
+        pthread_cond_signal(&conn->cond_recv);
+
         pthread_cond_signal(&conn->cond_recv);
         send_ack(conn);
     }
@@ -159,11 +166,11 @@ void* sender_thread(void* arg) {
         }
 
         uint8_t buf[BUFFER_SIZE];
-        size_t len = conn->snd_len;
+        size_t len = rb_peek_len(&conn->snd_buf);
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
         // memcpy(buf, conn->snd_buf, len);
-        rb_consume(&conn->snd_buf, buf);
+        rb_peek(&conn->snd_buf, buf, conn->snd_len);
 
         pthread_mutex_unlock(&conn->mutex);
         send_segment(conn, FLAG_ACK, seq, ack, buf, len);
@@ -192,6 +199,7 @@ void* sender_thread(void* arg) {
         }
 
         if (conn->snd_ack == expected_ack) {
+            rb_advance(&conn->snd_buf, len);
             conn->snd_seq += len;
             conn->snd_len = 0;
         } else {

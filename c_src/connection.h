@@ -146,7 +146,7 @@ static const Transition transitions[] = {
     { SYN_RECEIVED, CLOSE, FIN_WAIT_1, send_fin },
 
     // Data transfer
-    { ESTABLISHED, SEND, ESTABLISHED, send_data },
+    { ESTABLISHED, SEND, ESTABLISHED, NULL },
 
     // Active close
     { ESTABLISHED, CLOSE, FIN_WAIT_1, send_fin },
