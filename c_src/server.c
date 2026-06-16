@@ -1,3 +1,4 @@
+#include <asm-generic/errno.h>
 #include <bits/time.h>
 #include <bits/types/struct_iovec.h>
 #include <netinet/in.h>
@@ -11,7 +12,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <errno.h>
 
 #include "server.h"
 #include "connection.h"
@@ -86,13 +86,6 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
         conn->rcv_seq = packet.seq_number + 1;
     } else if (packet.data_len > 0) {
         conn->rcv_seq = packet.seq_number + packet.data_len;
-        // uint8_t header[4] = {
-        //     (packet.data_len >> 24) & 0xFF,
-        //     (packet.data_len >> 16) & 0xFF,
-        //     (packet.data_len >> 8)  & 0xFF,
-        //      packet.data_len        & 0xFF,
-        // };
-        // rb_write(&conn->rcv_buf, header, 4);
         rb_write(&conn->rcv_buf, packet.data, packet.data_len);
         pthread_cond_signal(&conn->cond_recv);
 
@@ -170,7 +163,13 @@ void* sender_thread(void* arg) {
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
         // memcpy(buf, conn->snd_buf, len);
-        rb_peek(&conn->snd_buf, buf, conn->snd_len);
+        rb_peek(&conn->snd_buf, buf, len);
+
+        printf("Sender thread buffer data len: %zu\n", len);
+        for (int i = 0; i < len; i++) {
+            printf("[%hhu]", buf[i]);
+        }
+        printf("\n");
 
         pthread_mutex_unlock(&conn->mutex);
         send_segment(conn, FLAG_ACK, seq, ack, buf, len);
