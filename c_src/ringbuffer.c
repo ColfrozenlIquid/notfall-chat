@@ -35,15 +35,15 @@ void rb_consume(RingBuffer* rb, uint8_t* dst) {
         |   ((uint32_t)rb->data[(rb->tail + 3) % RING_BUFFER_SIZE]);
 
     size_t total = 4 + data_len;          // header + payload
-    size_t start = rb->tail % RING_BUFFER_SIZE;
-    size_t first_chunk = RING_BUFFER_SIZE - start;
-    if (first_chunk > total) {
-        first_chunk = total;
+    size_t payload_start = (rb->tail + 4) % RING_BUFFER_SIZE;
+    size_t first_chunk = RING_BUFFER_SIZE - payload_start;
+    if (first_chunk > data_len) {
+        first_chunk = data_len;
     }
 
-    memcpy(dst, rb->data + start, first_chunk);
-    if (total > first_chunk) {
-        memcpy(dst + first_chunk, rb->data, total - first_chunk);
+    memcpy(dst, rb->data + payload_start, first_chunk);
+    if (data_len > first_chunk) {
+        memcpy(dst + first_chunk, rb->data, data_len - first_chunk);
     }
 
     printf("Dst buffer\n");

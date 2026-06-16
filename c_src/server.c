@@ -55,8 +55,8 @@ int run_server(int port, on_accept_cb cb, void* userdata){
 
     pthread_t recv_thread;
     pthread_t send_thread;
-    pthread_create(&recv_thread, NULL, receiver_thread, &conn);
-    pthread_create(&send_thread, NULL, sender_thread, &conn);
+    pthread_create(&recv_thread, NULL, receiver_thread, conn);
+    pthread_create(&send_thread, NULL, sender_thread, conn);
 
     pthread_join(recv_thread, NULL);
     pthread_join(send_thread, NULL);
