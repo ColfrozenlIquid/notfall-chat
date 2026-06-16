@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{tracker::PeerTracker, ui::run_ui};
+use crate::{ffi::ConnectionHandle, tracker::PeerTracker, ui::run_ui};
 
 #[derive(Debug)]
 pub struct NetworkDevice {
@@ -76,8 +76,12 @@ fn main() -> iced::Result {
 
     unsafe { ffi::discovery_listener_start() };
 
+    let (tx, rx) = std::sync::mpsc::channel::<ConnectionHandle>();
+
     std::thread::spawn(move || {
-        unsafe { ffi::run_server(12345) };
+        let tx_box = Box::new(tx);
+        let userdata = Box::into_raw(tx_box) as *mut std::ffi::c_void;
+        unsafe { ffi::run_server(12345, ffi::on_accept_callback, userdata) };
     });
 
     let tracker = Arc::new(Mutex::new(PeerTracker::new(Duration::from_secs(30))));
@@ -103,7 +107,7 @@ fn main() -> iced::Result {
 
     let tracker_clone = Arc::clone(&tracker);
 
-    let _ = run_ui(tracker_clone, name);
+    let _ = run_ui(tracker_clone, name, rx);
 
     Ok(())
 }

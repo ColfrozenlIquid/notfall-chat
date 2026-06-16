@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -16,7 +17,7 @@
 #include "connection.h"
 #include "ringbuffer.h"
 
-int run_server(int port) {
+int run_server(int port, on_accept_cb cb, void* userdata){
     int sockfd;
     struct sockaddr_in server_addr;
 
@@ -39,15 +40,18 @@ int run_server(int port) {
 
     printf("UDP server socket listening on port: %d\n", port);
 
-    Connection conn = {0};
-    conn.sockfd = sockfd;
-    conn.state = LISTEN;
-    rb_init(&conn.snd_buf);
-    rb_init(&conn.rcv_buf);
+    // Connection conn = {0};
+    Connection* conn = calloc(1, sizeof(Connection));
+    conn->on_accept = cb;
+    conn->on_accept_userdata = userdata;
+    conn->sockfd = sockfd;
+    conn->state = LISTEN;
+    rb_init(&conn->snd_buf);
+    rb_init(&conn->rcv_buf);
 
-    pthread_mutex_init(&conn.mutex, NULL);
-    pthread_cond_init(&conn.cond_recv, NULL);
-    pthread_cond_init(&conn.cond_send, NULL);
+    pthread_mutex_init(&conn->mutex, NULL);
+    pthread_cond_init(&conn->cond_recv, NULL);
+    pthread_cond_init(&conn->cond_send, NULL);
 
     pthread_t recv_thread;
     pthread_t send_thread;
@@ -57,9 +61,9 @@ int run_server(int port) {
     pthread_join(recv_thread, NULL);
     pthread_join(send_thread, NULL);
 
-    pthread_mutex_destroy(&conn.mutex);
-    pthread_cond_destroy(&conn.cond_send);
-    pthread_cond_destroy(&conn.cond_recv);
+    pthread_mutex_destroy(&conn->mutex);
+    pthread_cond_destroy(&conn->cond_send);
+    pthread_cond_destroy(&conn->cond_recv);
     close(sockfd);
     return 0;
 }

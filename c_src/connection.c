@@ -91,6 +91,12 @@ void send_data(Connection* conn) {
 
 }
 
+void notify_established(Connection* conn) {
+    if (conn->on_accept) {
+        conn->on_accept(conn, conn->on_accept_userdata);
+    }
+}
+
 void reset_listen(Connection *conn) {}
 
 void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len) {

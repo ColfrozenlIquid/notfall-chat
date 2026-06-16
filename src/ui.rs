@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     hash::Hash,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Receiver},
     time::Duration,
 };
 
@@ -44,6 +44,7 @@ pub struct App {
     messages: HashMap<String, Vec<UserMessage>>,
     selected_peer: Option<String>,
     content: String,
+    incoming_connections: std::sync::mpsc::Receiver<ConnectionHandle>,
 }
 
 #[derive(Clone)]
@@ -75,7 +76,11 @@ pub enum User {
 }
 
 impl App {
-    fn new(tracker: Arc<Mutex<PeerTracker>>, name: String) -> (Self, Task<Message>) {
+    fn new(
+        tracker: Arc<Mutex<PeerTracker>>,
+        name: String,
+        rx: std::sync::mpsc::Receiver<ConnectionHandle>,
+    ) -> (Self, Task<Message>) {
         let app = App {
             name,
             addr: String::new(),
@@ -86,6 +91,7 @@ impl App {
             messages: HashMap::new(),
             selected_peer: None,
             content: String::new(),
+            incoming_connections: rx,
         };
         (app, Task::none())
     }
@@ -96,6 +102,23 @@ impl App {
             Message::Tick => {
                 if let Ok(t) = self.tracker.lock() {
                     self.peers = t.peers().cloned().collect();
+                }
+                while let Ok(handle) = self.incoming_connections.try_recv() {
+                    let peer_name = "laptop".to_string();
+                    let handle_clone = handle.clone();
+                    self.connections.insert(peer_name.clone(), handle);
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || handle_clone.receive())
+                                .await
+                                .map_err(|e| e.to_string())
+                                .and_then(|r| r)
+                        },
+                        |result| match result {
+                            Ok(msg) => Message::MessageReceived(peer_name, msg),
+                            Err(e) => Message::ConnectFailed(e),
+                        },
+                    );
                 }
             }
             Message::PeerConnect(peer_name, peer_ip) => {
@@ -253,9 +276,18 @@ impl App {
     }
 }
 
-pub fn run_ui(tracker: Arc<Mutex<PeerTracker>>, name: String) -> iced::Result {
+pub fn run_ui(
+    tracker: Arc<Mutex<PeerTracker>>,
+    name: String,
+    rx: std::sync::mpsc::Receiver<ConnectionHandle>,
+) -> iced::Result {
+    let rx = std::sync::Mutex::new(Some(rx));
+
     let mut app = iced::application(
-        move || App::new(Arc::clone(&tracker), name.clone()),
+        move || {
+            let rx = rx.lock().unwrap().take().expect("run_ui called twice");
+            App::new(Arc::clone(&tracker), name.clone(), rx)
+        },
         App::update,
         App::view,
     )

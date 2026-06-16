@@ -9,7 +9,9 @@
 #define MAX_RETRIES 5
 #define RTO_MS 200
 
-int run_server(int port);
+typedef void (*on_accept_cb)(Connection* conn, void* userdata);
+
+int run_server(int port, on_accept_cb cb, void* userdata);
 
 void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len);
 

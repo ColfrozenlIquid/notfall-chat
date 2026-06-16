@@ -11,6 +11,8 @@ pub const INET_ADDRSTRLEN: usize = 16;
 
 pub enum Connection {}
 
+pub type OnAcceptCb = unsafe extern "C" fn(*mut Connection, *mut std::ffi::c_void);
+
 #[derive(Clone)]
 pub struct ConnectionHandle(Arc<ConnectionInner>);
 
@@ -91,7 +93,7 @@ unsafe extern "C" {
     pub fn broadcast_discovery(name: *mut u8, name_len: usize, tcp_port: u16) -> i32;
     pub fn discovery_listener_start();
     pub fn discovery_listener_pop(out: *mut C_DiscoveredPeer) -> i32;
-    pub fn run_server(port: i32) -> i32;
+    pub fn run_server(port: i32, cb: OnAcceptCb, userdata: *mut std::ffi::c_void) -> i32;
 
     pub fn connection_create() -> *mut Connection;
     pub fn connection_destroy(conn: *mut Connection);
@@ -99,4 +101,13 @@ unsafe extern "C" {
     pub fn connection_send(conn: *mut Connection, data: *const u8, len: usize) -> i32;
     pub fn connection_wait(conn: *mut Connection);
     pub fn connection_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
+}
+
+pub unsafe extern "C" fn on_accept_callback(
+    conn: *mut Connection,
+    userdata: *mut std::ffi::c_void,
+) {
+    let sender = unsafe { &*(userdata as *const std::sync::mpsc::Sender<ConnectionHandle>) };
+    let handle = ConnectionHandle(Arc::new(ConnectionInner(conn)));
+    let _ = sender.send(handle);
 }

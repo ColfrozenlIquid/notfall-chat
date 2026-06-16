@@ -10,6 +10,7 @@
 
 #include "ringbuffer.h"
 
+
 typedef enum {
     CLOSED,
     LISTEN,
@@ -58,7 +59,11 @@ typedef enum {
 #define SND_BUFFER_SIZE 8196
 #define RCV_BUFFER_SIZE 8196
 
-typedef struct {
+typedef struct Connection Connection;
+
+typedef void (*on_accept_cb)(Connection* conn, void* userdata);
+
+typedef struct Connection {
     State state;
 
     uint32_t snd_seq;   // next SEQ number we will send
@@ -85,6 +90,9 @@ typedef struct {
 
     pthread_t recv_tid;
     pthread_t send_tid;
+
+    on_accept_cb on_accept;
+    void* on_accept_userdata;
 } Connection;
 
 typedef void (*ActionFn) (Connection* conn);
@@ -124,6 +132,8 @@ void send_segment(Connection* conn, uint16_t flags, uint32_t snd_seq, uint32_t r
 
 void write_to_connection(Connection* conn, uint8_t* data, size_t data_len);
 
+void notify_established(Connection* conn);
+
 static const Transition transitions[] = {
     // Client side (receiver)
     { CLOSED, CONNECT, SYN_SENT, send_syn },
@@ -132,7 +142,7 @@ static const Transition transitions[] = {
     // Server side (sender)
     { CLOSED, LISTEN_CALL, LISTEN, NULL },
     { LISTEN, RECV_SYN, SYN_RECEIVED, send_syn_ack },
-    { SYN_RECEIVED, RECV_ACK, ESTABLISHED, NULL },
+    { SYN_RECEIVED, RECV_ACK, ESTABLISHED, notify_established },
     { SYN_RECEIVED, CLOSE, FIN_WAIT_1, send_fin },
 
     // Data transfer
