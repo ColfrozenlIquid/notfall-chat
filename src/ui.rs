@@ -56,6 +56,7 @@ pub enum Message {
     ConnectFailed(String),
     ContentChanged(String),
     SendMessage,
+    MessageReceived(String, String),
 }
 
 pub struct MessageHistory {
@@ -175,6 +176,16 @@ impl App {
                         },
                     );
                 }
+            }
+            Message::MessageReceived(peer, content) => {
+                self.messages
+                    .entry(peer.clone())
+                    .or_default()
+                    .push(UserMessage {
+                        timestamp: Utc::now(),
+                        content,
+                        user: peer,
+                    });
             }
         }
         Task::none()
