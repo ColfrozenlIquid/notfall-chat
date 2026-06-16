@@ -44,7 +44,7 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     uint8_t buf[8192];
     rb_consume(&conn->rcv_buf, buf);
     memcpy(dst, buf + 4, data_len);
-    *out_len = data_len - 4;
+    *out_len = data_len;
     conn->rcv_len = 0;
     pthread_mutex_unlock(&conn->mutex);
     return 0;
