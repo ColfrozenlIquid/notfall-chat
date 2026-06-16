@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    hash::Hash,
+    sync::{Arc, Mutex, mpsc::Receiver},
     time::Duration,
 };
 
@@ -104,23 +105,20 @@ impl App {
                 }
                 while let Ok(handle) = self.incoming_connections.try_recv() {
                     let peer_name = "laptop".to_string();
-                    self.connections.insert(peer_name, handle);
-                }
-                let mut received = vec![];
-                for (peer, handle) in &self.connections {
-                    match handle.try_receive() {
-                        Ok(Some(msg)) => received.push((peer.clone(), msg)),
-                        Ok(None) => {}
-                        Err(e) => eprintln!("recv error from {peer}: {e}"),
-                    }
-                }
-                for (peer, msg) in received {
-                    let message = UserMessage {
-                        timestamp: Utc::now(),
-                        content: msg,
-                        user: peer.clone(),
-                    };
-                    self.messages.entry(peer).or_default().push(message);
+                    let handle_clone = handle.clone();
+                    self.connections.insert(peer_name.clone(), handle);
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || handle_clone.receive())
+                                .await
+                                .map_err(|e| e.to_string())
+                                .and_then(|r| r)
+                        },
+                        |result| match result {
+                            Ok(msg) => Message::MessageReceived(peer_name, msg),
+                            Err(e) => Message::ConnectFailed(e),
+                        },
+                    );
                 }
             }
             Message::PeerConnect(peer_name, peer_ip) => {
@@ -135,7 +133,21 @@ impl App {
                 );
             }
             Message::Connected(handle, peer_name) => {
+                let handle_clone = handle.clone();
                 self.connections.insert(peer_name.clone(), handle);
+
+                return Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || handle_clone.receive())
+                            .await
+                            .map_err(|e| e.to_string())
+                            .and_then(|r| r)
+                    },
+                    |result| match result {
+                        Ok(msg) => Message::MessageReceived(peer_name, msg),
+                        Err(e) => Message::ConnectFailed(e),
+                    },
+                );
             }
             Message::ConnectFailed(e) => {
                 eprintln!("connection failed: {e}");
@@ -176,22 +188,40 @@ impl App {
                     );
                 }
             }
-            Message::MessageReceived(peer, content) => {
+            Message::MessageReceived(peer_name, content) => {
+                let msg = UserMessage {
+                    timestamp: Utc::now(),
+                    content,
+                    user: peer_name.clone(),
+                };
+
                 self.messages
-                    .entry(peer.clone())
+                    .entry(peer_name.clone())
                     .or_default()
-                    .push(UserMessage {
-                        timestamp: Utc::now(),
-                        content,
-                        user: peer,
-                    });
+                    .push(msg);
+
+                if let Some(handle) = self.connections.get(&peer_name) {
+                    let handle = handle.clone();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || handle.receive())
+                                .await
+                                .map_err(|e| e.to_string())
+                                .and_then(|r| r)
+                        },
+                        move |result| match result {
+                            Ok(msg) => Message::MessageReceived(peer_name.clone(), msg),
+                            Err(e) => Message::ConnectFailed(e),
+                        },
+                    );
+                }
             }
         }
         Task::none()
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
-        iced::time::every(Duration::from_millis(100)).map(|_| Message::Tick)
+        iced::time::every(Duration::from_millis(500)).map(|_| Message::Tick)
     }
 
     fn view(&self) -> Element<'_, Message> {
