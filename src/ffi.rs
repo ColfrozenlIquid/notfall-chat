@@ -71,6 +71,20 @@ impl ConnectionHandle {
         buf.truncate(len);
         String::from_utf8(buf).map_err(|e| e.to_string())
     }
+
+    pub fn try_receive(&self) -> Result<Option<String>, String> {
+        let mut buf = vec![0u8; 8192];
+        let mut len: usize = 0;
+        let ret = unsafe { connection_try_receive(self.0.0, buf.as_mut_ptr(), &mut len) };
+        match ret {
+            0 => Ok(None),
+            1 => {
+                buf.truncate(len);
+                Ok(Some(String::from_utf8(buf).map_err(|e| e.to_string())?))
+            }
+            _ => Err(format!("recv failed: {ret}")),
+        }
+    }
 }
 
 #[repr(C)]
@@ -101,6 +115,7 @@ unsafe extern "C" {
     pub fn connection_send(conn: *mut Connection, data: *const u8, len: usize) -> i32;
     pub fn connection_wait(conn: *mut Connection);
     pub fn connection_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
+    pub fn connection_try_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
 }
 
 pub unsafe extern "C" fn on_accept_callback(

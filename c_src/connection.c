@@ -50,6 +50,23 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     return 0;
 }
 
+int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
+    pthread_mutex_lock(&conn->mutex);
+    if (conn->rcv_len == 0) {
+        pthread_mutex_unlock(&conn->mutex);
+        return 0;
+    }
+
+    uint32_t data_len = rb_peek_len(&conn->rcv_buf);
+    uint8_t buf[8192];
+    rb_consume(&conn->rcv_buf, buf);
+    memcpy(dst, buf + 4, data_len);
+    *out_len = data_len;
+    conn->rcv_len = 0;
+    pthread_mutex_unlock(&conn->mutex);
+    return 0;
+}
+
 void connection_wait(Connection* conn) {
     pthread_join(conn->recv_tid, NULL);
     pthread_join(conn->send_tid, NULL);
@@ -142,7 +159,7 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
     // memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
     rb_write(&conn->snd_buf, header, 4);
     rb_write(&conn->snd_buf, data, data_len);
-    conn->snd_len = total_len;
+    conn->snd_len += total_len;
 
     pthread_mutex_unlock(&conn->mutex);
     pthread_cond_signal(&conn->cond_send);

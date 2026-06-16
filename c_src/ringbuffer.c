@@ -43,10 +43,7 @@ void rb_consume(RingBuffer* rb, uint8_t* dst) {
     if (total > first_chunk) {
         memcpy(dst + first_chunk, rb->data, total - first_chunk);
     }
-    printf("Dst buffer\n");
-    for (int i = 0; i < total; i++) {
-        printf("[%hhu]", dst[i]);
-    }
+
     rb->tail = (rb->tail + total) % RING_BUFFER_SIZE;
     rb->count -= total;
 }

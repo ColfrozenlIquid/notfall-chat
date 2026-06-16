@@ -112,6 +112,8 @@ int connection_send(Connection* conn, const uint8_t* data, size_t len);
 
 int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len);
 
+int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len);
+
 void connection_wait(Connection* conn);
 
 bool fsm_dispatch(Connection* conn, Event event);
