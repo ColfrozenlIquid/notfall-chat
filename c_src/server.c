@@ -156,14 +156,14 @@ void* sender_thread(void* arg) {
     pthread_mutex_lock(&conn->mutex);
 
     while (1) {
-        while (conn->snd_len == 0 || conn->peer_window == 0) {
+        while (rb_free_space(&conn->snd_buf) == 0 || conn->peer_window == 0) {
             pthread_cond_wait(&conn->cond_send, &conn->mutex);
         }
         uint8_t buf[BUFFER_SIZE];
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
 
-        size_t want = conn->snd_len > PACKET_DATA_SIZE ? PACKET_DATA_SIZE : conn->snd_len;
+        size_t want = rb_free_space(&conn->snd_buf) > PACKET_DATA_SIZE ? PACKET_DATA_SIZE : rb_free_space(&conn->snd_buf);
         size_t peek_len = want > conn->peer_window ? conn->peer_window : want;
 
         uint32_t len = rb_peek(&conn->snd_buf, buf, peek_len);
@@ -203,7 +203,6 @@ void* sender_thread(void* arg) {
         if (conn->snd_ack == expected_ack) {
             rb_advance(&conn->snd_buf, peek_len);
             conn->snd_seq += len;
-            conn->snd_len -= peek_len;
         } else {
             fprintf(stderr, "send failed after %d retries\n", MAX_RETRIES);
         }

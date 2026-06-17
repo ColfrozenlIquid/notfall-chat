@@ -70,9 +70,7 @@ typedef struct Connection {
     uint32_t rcv_seq;   // next SEQ number we expect to receive
 
     RingBuffer snd_buf;
-    size_t snd_len;
     RingBuffer rcv_buf;
-    size_t rcv_len;
 
     size_t peer_window;
 

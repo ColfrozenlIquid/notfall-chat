@@ -47,7 +47,7 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
 
 int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     pthread_mutex_lock(&conn->mutex);
-    if (conn->rcv_len == 0) {
+    if (rb_free_space(&conn->rcv_buf) == 0) {
         pthread_mutex_unlock(&conn->mutex);
         return 0;
     }
@@ -57,7 +57,6 @@ int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     rb_consume(&conn->rcv_buf, buf);
     memcpy(dst, buf + 4, data_len);
     *out_len = data_len;
-    conn->rcv_len = 0;
     pthread_mutex_unlock(&conn->mutex);
     return 0;
 }
@@ -114,7 +113,7 @@ void notify_established(Connection* conn) {
 void reset_listen(Connection *conn) {}
 
 size_t connection_rcv_window_size(Connection* conn) {
-    return RCV_BUFFER_SIZE - conn->rcv_len;
+    return rb_free_space(&conn->rcv_buf);
 }
 
 void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len) {
@@ -153,7 +152,7 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
     size_t total_len = 4 + data_len;
 
     pthread_mutex_lock(&conn->mutex);
-    while (conn->snd_len + total_len > SND_BUFFER_SIZE) {
+    while (total_len > rb_free_space(&conn->snd_buf)) {
         pthread_cond_wait(&conn->cond_send, &conn->mutex);
     }
 
@@ -161,7 +160,6 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
     // memcpy(conn->snd_buf + conn->snd_len + 4, data, data_len);
     rb_write(&conn->snd_buf, header, 4);
     rb_write(&conn->snd_buf, data, data_len);
-    conn->snd_len += total_len;
 
     pthread_mutex_unlock(&conn->mutex);
     pthread_cond_signal(&conn->cond_send);
