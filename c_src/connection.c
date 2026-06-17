@@ -184,3 +184,28 @@ uint32_t connection_lost(Connection* conn) {
 double connection_loss_rate(Connection* conn) {
     return conn->loss.loss_rate;
 }
+
+void loss_on_send(loss_estimator_t* e) {
+    e->sent++;
+}
+
+void loss_on_retransmit(loss_estimator_t* e) {
+    e->lost++;
+}
+
+void loss_recompute(loss_estimator_t* e) {
+    e->loss_rate = e->sent ? (double)e->lost / e->sent : 0.0;
+}
+
+void rtt_update(rtt_estimator_t* e, double measured_rtt_ms) {
+    if (!e->initialized) {
+        e->srtt = measured_rtt_ms;
+        e->rttvar = measured_rtt_ms / 2.0;
+        e->initialized = 1;
+    } else {
+        double err = measured_rtt_ms - e->srtt;
+        e->srtt += 0.125 * err; // alpha = 1/8
+        e->rttvar += 0.25 * (fabs(err) - e->rttvar);
+    }
+
+}

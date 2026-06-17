@@ -90,7 +90,7 @@ impl ConnectionHandle {
 
     pub fn print_loss_rate(&self) {
         let ret = unsafe { connection_loss_rate(self.0.0) };
-        println!("Connection loss rate: {}", ret * 100);
+        println!("Connection loss rate: {}", ret * 100.0);
     }
 }
 

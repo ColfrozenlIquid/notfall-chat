@@ -69,39 +69,11 @@ typedef struct {
     int initialized;
 } rtt_estimator_t;
 
-
-void rtt_update(rtt_estimator_t* e, double measured_rtt_ms) {
-    if (!e->initialized) {
-        e->srtt = measured_rtt_ms;
-        e->rttvar = measured_rtt_ms / 2.0;
-        e->initialized = 1;
-    } else {
-        double err = measured_rtt_ms - e->srtt;
-        e->srtt += 0.125 * err; // alpha = 1/8
-        e->rttvar += 0.25 * (fabs(err) - e->rttvar);
-    }
-
-}
-
 typedef struct {
     uint32_t sent;
     uint32_t lost;
     double loss_rate;
 } loss_estimator_t;
-
-
-void loss_on_send(loss_estimator_t* e) {
-    e->sent++;
-}
-
-void loss_on_retransmit(loss_estimator_t* e) {
-    e->lost++;
-}
-
-void loss_recompute(loss_estimator_t* e) {
-    e->loss_rate = e->sent ? (double)e->lost / e->sent : 0.0;
-}
-
 
 typedef struct Connection {
     State state;
@@ -190,6 +162,14 @@ void send_segment(Connection* conn, uint16_t flags, uint32_t snd_seq, uint32_t r
 void write_to_connection(Connection* conn, uint8_t* data, size_t data_len);
 
 void notify_established(Connection* conn);
+
+void loss_on_send(loss_estimator_t* e);
+
+void loss_on_retransmit(loss_estimator_t* e);
+
+void loss_recompute(loss_estimator_t* e);
+
+void rtt_update(rtt_estimator_t* e, double measured_rtt_ms);
 
 static const Transition transitions[] = {
     // Client side (receiver)
