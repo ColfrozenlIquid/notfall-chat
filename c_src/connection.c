@@ -37,12 +37,12 @@ int connection_send(Connection* conn, const uint8_t* data, size_t len) {
 
 int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     pthread_mutex_lock(&conn->mutex);
-    while (rb_is_empty(&conn->rcv_buf)) {
+    int ret;
+    while ((ret = rb_try_read_message(&conn->rcv_buf, dst, 8192, out_len)) == 0) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
-    int res = rb_try_read_message(&conn->rcv_buf, dst, 8192, out_len);
     pthread_mutex_unlock(&conn->mutex);
-    return res;
+    return ret; // either 1 (success) or negative (error)
 }
 
 int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
