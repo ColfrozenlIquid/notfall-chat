@@ -103,6 +103,8 @@ typedef struct {
     ActionFn action;
 } Transition;
 
+size_t connection_rcv_window_size(Connection* conn);
+
 Connection* connection_create(void);
 
 void connection_destroy(Connection* conn);

@@ -113,6 +113,10 @@ void notify_established(Connection* conn) {
 
 void reset_listen(Connection *conn) {}
 
+size_t connection_rcv_window_size(Connection* conn) {
+    return RCV_BUFFER_SIZE - conn->rcv_len;
+}
+
 void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t rcv_seq, uint8_t* snd_buf, size_t snd_len) {
     Packet pkt;
     memset(&pkt, 0, sizeof(pkt));
@@ -121,7 +125,7 @@ void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t r
     pkt.seq_number = snd_seq;
     pkt.ack_number = rcv_seq;
     pkt.data_len = snd_len;
-    pkt.window_size = conn->rcv_len;
+    pkt.window_size = connection_rcv_window_size(conn);
 
     printf("Advertising receiver window len: %hu\n", pkt.window_size);
 
