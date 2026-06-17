@@ -7,19 +7,19 @@ use std::{
 use chrono::{DateTime, Utc};
 use iced::{
     Color, Element, Font, Length, Size, Task, Theme,
-    widget::{self, button, column, container, row, text, text_input},
+    widget::{self, button, column, container, row, rule, scrollable, text, text_input},
     window::Settings,
 };
 
 use crate::{
-    ffi::{self, ConnectionHandle},
+    ffi::ConnectionHandle,
     tracker::{DiscoveredPeer, PeerTracker},
 };
 
-const WINDOW_WIDTH: f32 = 800.0;
-const WINDOW_HEIGHT: f32 = 600.0;
+const WINDOW_WIDTH: f32 = 1400.0;
+const WINDOW_HEIGHT: f32 = 1000.0;
 
-const TEXT_SIZE: f32 = 20.0;
+const TEXT_SIZE: f32 = 28.0;
 const PADDING: f32 = 28.0;
 
 const FONTS: &[(&str, &[u8])] = &[
@@ -39,7 +39,7 @@ pub struct App {
     port: u16,
     tracker: std::sync::Arc<Mutex<PeerTracker>>,
     peers: Vec<DiscoveredPeer>,
-    connections: HashMap<String, ConnectionHandle>,
+    connections: HashMap<String, (ConnectionHandle, Connection)>,
     messages: HashMap<String, Vec<UserMessage>>,
     selected_peer: Option<String>,
     content: String,
@@ -56,6 +56,7 @@ pub enum Message {
     ContentChanged(String),
     SendMessage,
     MessageReceived(String, String),
+    StatsUpdated(String, f64, f64, f64),
 }
 
 pub struct MessageHistory {
@@ -69,9 +70,19 @@ pub struct UserMessage {
     user: String,
 }
 
-pub enum User {
-    SELF,
-    PARTNER,
+#[derive(Clone)]
+enum ConnectionStatus {
+    CONNECTED,
+    DISCONNECTED,
+}
+
+#[derive(Clone)]
+pub struct Connection {
+    user: String,
+    status: ConnectionStatus,
+    srtt: f64,
+    rttvar: f64,
+    loss_rate: f64,
 }
 
 impl App {
@@ -105,9 +116,19 @@ impl App {
                 while let Ok(handle) = self.incoming_connections.try_recv() {
                     let peer_name = "laptop".to_string();
                     let handle_clone = handle.clone();
-                    self.connections.insert(peer_name.clone(), handle);
-
-                    ConnectionHandle::print_loss_rate(&handle_clone);
+                    self.connections.insert(
+                        peer_name.clone(),
+                        (
+                            handle,
+                            Connection {
+                                user: peer_name.clone(),
+                                status: ConnectionStatus::CONNECTED,
+                                srtt: 0.0,
+                                rttvar: 0.0,
+                                loss_rate: 0.0,
+                            },
+                        ),
+                    );
 
                     return Task::perform(
                         async move {
@@ -136,7 +157,19 @@ impl App {
             }
             Message::Connected(handle, peer_name) => {
                 let handle_clone = handle.clone();
-                self.connections.insert(peer_name.clone(), handle);
+                self.connections.insert(
+                    peer_name.clone(),
+                    (
+                        handle,
+                        Connection {
+                            user: peer_name.clone(),
+                            status: ConnectionStatus::CONNECTED,
+                            srtt: 0.0,
+                            rttvar: 0.0,
+                            loss_rate: 0.0,
+                        },
+                    ),
+                );
 
                 return Task::perform(
                     async move {
@@ -156,6 +189,13 @@ impl App {
             }
             Message::ContentChanged(content) => {
                 self.content = content;
+            }
+            Message::StatsUpdated(peer, srtt, rttvar, loss_rate) => {
+                if let Some((_, conn)) = self.connections.get_mut(&peer) {
+                    conn.srtt = srtt;
+                    conn.rttvar = rttvar;
+                    conn.loss_rate = loss_rate;
+                }
             }
             Message::SendMessage => {
                 if self.content.is_empty() {
@@ -179,12 +219,23 @@ impl App {
 
                 self.content.clear();
 
-                if let Some(conn) = self.connections.get(&peer) {
-                    let conn = conn.clone();
+                if let Some((handle, _)) = self.connections.get(&peer) {
+                    let handle = handle.clone();
+                    let content = msg.content.clone();
+                    let peer_for_result = peer.clone();
+
                     return Task::perform(
-                        async move { ConnectionHandle::send(&conn, &msg.content.to_string()) },
-                        |result| match result {
-                            Ok(_) => Message::Tick,
+                        async move {
+                            let result = ConnectionHandle::send(&handle, &content);
+                            (handle, result)
+                        },
+                        move |(handle, result)| match result {
+                            Ok(_) => Message::StatsUpdated(
+                                peer_for_result.clone(),
+                                handle.get_srtt(),
+                                handle.get_rttvar(),
+                                handle.get_loss_rate(),
+                            ),
                             Err(e) => Message::ConnectFailed(e),
                         },
                     );
@@ -204,9 +255,10 @@ impl App {
 
                 if let Some(handle) = self.connections.get(&peer_name) {
                     let handle = handle.clone();
+
                     return Task::perform(
                         async move {
-                            tokio::task::spawn_blocking(move || handle.receive())
+                            tokio::task::spawn_blocking(move || handle.0.receive())
                                 .await
                                 .map_err(|e| e.to_string())
                                 .and_then(|r| r)
@@ -227,14 +279,21 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let peer_list = self.peers.iter().fold(column![].spacing(8), |col, peer| {
-            col.push(
-                button(text(format!("{} @ {}", peer.name, peer.ip)).size(TEXT_SIZE))
+        let peer_list = self
+            .peers
+            .iter()
+            .enumerate()
+            .fold(column![].spacing(8), |col, peer| {
+                col.push(
+                    button(
+                        text(format!("{}. {} @ {}", peer.0, peer.1.name, peer.1.ip))
+                            .size(TEXT_SIZE),
+                    )
                     .width(Length::Fill)
-                    .on_press(Message::PeerConnect(peer.name.clone(), peer.ip.clone()))
+                    .on_press(Message::PeerConnect(peer.1.name.clone(), peer.1.ip.clone()))
                     .style(widget::button::text),
-            )
-        });
+                )
+            });
 
         let chat = self
             .selected_peer
@@ -244,15 +303,18 @@ impl App {
             .unwrap_or(&[])
             .iter()
             .fold(column![].spacing(8), |col, msg| {
-                col.push(
-                    text(format!("{} @ {}: {}", msg.user, msg.timestamp, msg.content))
-                        .size(TEXT_SIZE)
-                        .width(Length::Fill),
-                )
+                col.push(row![
+                    text(format!(
+                        "{} {}: {}",
+                        msg.timestamp.format("%H:%M:%S").to_string(),
+                        msg.user,
+                        msg.content
+                    ))
+                    .size(TEXT_SIZE)
+                    .width(Length::Fill),
+                ])
             });
 
-        // let chat = self.text(format!("{} @ {}: {}"), )
-        //
         let message_entry = text_input("Type something here", &self.content)
             .on_input(Message::ContentChanged)
             .on_submit(Message::SendMessage)
@@ -264,9 +326,40 @@ impl App {
                 style
             });
 
+        let vert_divider = rule::vertical(2);
+
+        let chat_status = self
+            .selected_peer
+            .as_deref()
+            .and_then(|peer| self.connections.get(peer))
+            .map(|conn| &conn.1)
+            .map(|conn| {
+                text(format!(
+                    "Status: Connected | SRTT: {:.2} ms | RTTVAR: {:.2} ms",
+                    conn.srtt, conn.rttvar
+                ))
+                .size(20)
+            });
+
         let layout = row![
-            column![peer_list].width(Length::Fill),
-            column![text("Chat").size(TEXT_SIZE), chat, message_entry].width(Length::Fill)
+            column![text!("====== PEERS ======").size(TEXT_SIZE), peer_list]
+                .width(Length::FillPortion(1))
+                .padding(10),
+            vert_divider,
+            column![
+                text(format!(
+                    "Chat with @ {}",
+                    self.selected_peer.as_deref().unwrap_or("None")
+                ))
+                .size(TEXT_SIZE),
+                chat_status,
+                scrollable(chat).height(Length::Fill),
+                message_entry
+            ]
+            .width(Length::FillPortion(2))
+            .height(Length::Fill)
+            .padding(10)
+            .spacing(10)
         ]
         .padding(PADDING);
 

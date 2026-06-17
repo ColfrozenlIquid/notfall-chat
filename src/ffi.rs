@@ -100,6 +100,18 @@ impl ConnectionHandle {
         println!("RTT Variance (jitter): {}", rttvar);
         println!("Smoothed RTT: {}", srtt);
     }
+
+    pub fn get_loss_rate(&self) -> f64 {
+        return unsafe { connection_loss_rate(self.0.0) };
+    }
+
+    pub fn get_rttvar(&self) -> f64 {
+        return unsafe { connection_rttvar(self.0.0) };
+    }
+
+    pub fn get_srtt(&self) -> f64 {
+        return unsafe { connection_srtt(self.0.0) };
+    }
 }
 
 #[repr(C)]
