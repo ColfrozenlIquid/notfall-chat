@@ -92,6 +92,14 @@ impl ConnectionHandle {
         let ret = unsafe { connection_loss_rate(self.0.0) };
         println!("Connection loss rate: {}", ret * 100.0);
     }
+
+    pub fn print_round_trip(&self) {
+        let rttvar = unsafe { connection_rttvar(self.0.0) };
+        let srtt = unsafe { connection_srtt(self.0.0) };
+
+        println!("RTT Variance (jitter): {}", rttvar);
+        println!("Smoothed RTT: {}", srtt);
+    }
 }
 
 #[repr(C)]
