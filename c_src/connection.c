@@ -42,7 +42,7 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
     pthread_mutex_unlock(&conn->mutex);
-    return ret; // either 1 (success) or negative (error)
+    return ret;
 }
 
 int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {

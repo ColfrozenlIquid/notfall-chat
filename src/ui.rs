@@ -114,7 +114,11 @@ impl App {
                     self.peers = t.peers().cloned().collect();
                 }
                 while let Ok(handle) = self.incoming_connections.try_recv() {
-                    let peer_name = "laptop".to_string();
+                    let peer_name = self
+                        .selected_peer
+                        .as_deref()
+                        .expect("Peer name not set")
+                        .to_string();
                     let handle_clone = handle.clone();
                     self.connections.insert(
                         peer_name.clone(),
@@ -258,6 +262,8 @@ impl App {
 
                     return Task::perform(
                         async move {
+                            // Configure to see the congestion control
+                            // tokio::time::sleep(Duration::from_millis(2000)).await;
                             tokio::task::spawn_blocking(move || handle.0.receive())
                                 .await
                                 .map_err(|e| e.to_string())

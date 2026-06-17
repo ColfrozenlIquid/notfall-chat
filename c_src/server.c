@@ -179,7 +179,9 @@ void* sender_thread(void* arg) {
         clock_gettime(CLOCK_MONOTONIC, &t_sent);
 
         pthread_mutex_unlock(&conn->mutex);
-        send_segment(conn, FLAG_ACK, seq, ack, buf, len);
+        if (!should_drop(0.3f)) {
+            send_segment(conn, FLAG_ACK, seq, ack, buf, len);
+        }
         pthread_mutex_lock(&conn->mutex);
 
         uint32_t expected_ack = seq + len;
@@ -199,6 +201,8 @@ void* sender_thread(void* arg) {
             int rc = pthread_cond_timedwait(&conn->cond_send, &conn->mutex, &deadline);
 
             if (rc == ETIMEDOUT && conn->snd_ack != expected_ack) {
+                fprintf(stderr, "[RETRANSMIT] seq=%u expected_ack=%u retry=%d\n",
+                            seq, expected_ack, retries + 1);
                 loss_on_retransmit(&conn->loss);
                 pthread_mutex_unlock(&conn->mutex);
                 ack = conn->rcv_seq;
@@ -210,10 +214,10 @@ void* sender_thread(void* arg) {
         }
 
         if (conn->snd_ack == expected_ack) {
+            if (retransmitted) {
+                fprintf(stderr, "[ACK] seq=%u acked after %d retransmit(s)\n", seq, retries);
+            }
             if (!retransmitted) {
-                // only sample RTT on a "clean" ACK — Karn's algorithm.
-                // an ACK after retransmit is ambiguous: don't know if it
-                // acks the original or the retransmitted copy.
                 clock_gettime(CLOCK_MONOTONIC, &t_acked);
                 double rtt_ms = (t_acked.tv_sec - t_sent.tv_sec) * 1000.0
                                 + (t_acked.tv_nsec - t_sent.tv_nsec) / 1e6;
@@ -223,9 +227,13 @@ void* sender_thread(void* arg) {
             rb_advance(&conn->snd_buf, peek_len);
             conn->snd_seq += len;
         } else {
-            fprintf(stderr, "send failed after %d retries\n", MAX_RETRIES);
+            fprintf(stderr, "[FAIL] seq=%u gave up after %d retries\n", seq, MAX_RETRIES);
         }
     }
     pthread_mutex_unlock(&conn->mutex);
     return NULL;
+}
+
+static int should_drop(float loss_rate) {
+    return ((float)rand() / RAND_MAX) < loss_rate;
 }

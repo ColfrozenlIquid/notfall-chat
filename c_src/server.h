@@ -17,3 +17,5 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
 void* receiver_thread(void* arg);
 
 void* sender_thread(void* arg);
+
+static int should_drop(float loss_rate);
