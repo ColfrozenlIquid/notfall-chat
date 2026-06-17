@@ -101,7 +101,7 @@ fn main() -> iced::Result {
     if headless {
         println!("Running in headless mode as '{name}'. Press Ctrl+C to exit.");
         loop {
-            std::thread::sleep(Duration::from_secs(60));
+            std::thread::sleep(Duration::from_secs(1));
         }
     }
 

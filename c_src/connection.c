@@ -121,6 +121,9 @@ void send_segment(Connection *conn, uint16_t flags, uint32_t snd_seq, uint32_t r
     pkt.seq_number = snd_seq;
     pkt.ack_number = rcv_seq;
     pkt.data_len = snd_len;
+    pkt.window_size = conn->rcv_len;
+
+    printf("Advertising receiver window len: %hu\n", pkt.window_size);
 
     if (snd_len > 0) memcpy(pkt.data, snd_buf, snd_len);
 
