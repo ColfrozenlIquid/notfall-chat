@@ -1,6 +1,7 @@
 #pragma once
 #include <bits/pthreadtypes.h>
 #include <bits/types/struct_iovec.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <sys/socket.h>
@@ -62,6 +63,46 @@ typedef struct Connection Connection;
 
 typedef void (*on_accept_cb)(Connection* conn, void* userdata);
 
+typedef struct {
+    double srtt;
+    double rttvar;
+    int initialized;
+} rtt_estimator_t;
+
+
+void rtt_update(rtt_estimator_t* e, double measured_rtt_ms) {
+    if (!e->initialized) {
+        e->srtt = measured_rtt_ms;
+        e->rttvar = measured_rtt_ms / 2.0;
+        e->initialized = 1;
+    } else {
+        double err = measured_rtt_ms - e->srtt;
+        e->srtt += 0.125 * err; // alpha = 1/8
+        e->rttvar += 0.25 * (fabs(err) - e->rttvar);
+    }
+
+}
+
+typedef struct {
+    uint32_t sent;
+    uint32_t lost;
+    double loss_rate;
+} loss_estimator_t;
+
+
+void loss_on_send(loss_estimator_t* e) {
+    e->sent++;
+}
+
+void loss_on_retransmit(loss_estimator_t* e) {
+    e->lost++;
+}
+
+void loss_recompute(loss_estimator_t* e) {
+    e->loss_rate = e->sent ? (double)e->lost / e->sent : 0.0;
+}
+
+
 typedef struct Connection {
     State state;
 
@@ -92,6 +133,9 @@ typedef struct Connection {
 
     on_accept_cb on_accept;
     void* on_accept_userdata;
+
+    rtt_estimator_t rtt;
+    loss_estimator_t loss;
 } Connection;
 
 typedef void (*ActionFn) (Connection* conn);
@@ -108,6 +152,16 @@ size_t connection_rcv_window_size(Connection* conn);
 Connection* connection_create(void);
 
 void connection_destroy(Connection* conn);
+
+double connection_srtt(Connection* conn);
+
+double connection_rttvar(Connection* conn);
+
+uint32_t connection_sent(Connection* conn);
+
+uint32_t connection_lost(Connection* conn);
+
+double connection_loss_rate(Connection* conn);
 
 int connection_send(Connection* conn, const uint8_t* data, size_t len);
 

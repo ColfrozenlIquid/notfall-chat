@@ -164,3 +164,23 @@ void write_to_connection(Connection* conn, uint8_t* data, size_t data_len) {
     pthread_mutex_unlock(&conn->mutex);
     pthread_cond_signal(&conn->cond_send);
 }
+
+double connection_srtt(Connection* conn) {
+    return conn->rtt.srtt;
+}
+
+double connection_rttvar(Connection* conn) {
+    return conn->rtt.rttvar;
+}
+
+uint32_t connection_sent(Connection* conn) {
+    return conn->loss.sent;
+}
+
+uint32_t connection_lost(Connection* conn) {
+    return conn->loss.lost;
+}
+
+double connection_loss_rate(Connection* conn) {
+    return conn->loss.loss_rate;
+}

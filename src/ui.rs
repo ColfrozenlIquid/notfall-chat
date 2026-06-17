@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    hash::Hash,
-    sync::{Arc, Mutex, mpsc::Receiver},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -13,14 +12,14 @@ use iced::{
 };
 
 use crate::{
-    ffi::ConnectionHandle,
+    ffi::{self, ConnectionHandle},
     tracker::{DiscoveredPeer, PeerTracker},
 };
 
-const WINDOW_WIDTH: f32 = 1400.0;
-const WINDOW_HEIGHT: f32 = 1400.0;
+const WINDOW_WIDTH: f32 = 800.0;
+const WINDOW_HEIGHT: f32 = 600.0;
 
-const TEXT_SIZE: f32 = 28.0;
+const TEXT_SIZE: f32 = 20.0;
 const PADDING: f32 = 28.0;
 
 const FONTS: &[(&str, &[u8])] = &[
@@ -107,6 +106,9 @@ impl App {
                     let peer_name = "laptop".to_string();
                     let handle_clone = handle.clone();
                     self.connections.insert(peer_name.clone(), handle);
+
+                    ConnectionHandle::print_loss_rate(&handle_clone);
+
                     return Task::perform(
                         async move {
                             tokio::task::spawn_blocking(move || handle_clone.receive())

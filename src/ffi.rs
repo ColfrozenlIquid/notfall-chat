@@ -87,6 +87,11 @@ impl ConnectionHandle {
             _ => Err(format!("recv failed: {ret}")),
         }
     }
+
+    pub fn print_loss_rate(&self) {
+        let ret = unsafe { connection_loss_rate(self.0.0) };
+        println!("Connection loss rate: {}", ret * 100);
+    }
 }
 
 #[repr(C)]
@@ -118,6 +123,12 @@ unsafe extern "C" {
     pub fn connection_wait(conn: *mut Connection);
     pub fn connection_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
     pub fn connection_try_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
+
+    pub fn connection_srtt(conn: *mut Connection) -> f64;
+    pub fn connection_rttvar(conn: *mut Connection) -> f64;
+    pub fn connection_sent(conn: *mut Connection) -> u32;
+    pub fn connection_lost(conn: *mut Connection) -> u32;
+    pub fn connection_loss_rate(conn: *mut Connection) -> f64;
 }
 
 pub unsafe extern "C" fn on_accept_callback(
