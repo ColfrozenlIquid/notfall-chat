@@ -65,11 +65,13 @@ impl ConnectionHandle {
         let mut buf = vec![0u8; 8192];
         let mut len: usize = 0;
         let ret = unsafe { connection_receive(self.0.0, buf.as_mut_ptr(), &mut len) };
-        if ret != 0 {
-            return Err(format!("connection_recv failed: {ret}"));
+        match ret {
+            1 => {
+                buf.truncate(len);
+                Ok(String::from_utf8(buf).map_err(|e| e.to_string())?)
+            }
+            _ => Err(format!("recv failed: {ret}")),
         }
-        buf.truncate(len);
-        String::from_utf8(buf).map_err(|e| e.to_string())
     }
 
     pub fn try_receive(&self) -> Result<Option<String>, String> {
