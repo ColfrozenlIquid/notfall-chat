@@ -81,6 +81,8 @@ void handle_incoming_packet(Connection* conn, const uint8_t* buf, size_t buf_len
     }
     printf("\n");
 
+    conn->peer_window = packet.window_size;
+
     conn->snd_ack = packet.ack_number;
     if (packet.flags & FLAG_SYN || packet.flags & FLAG_FIN) {
         conn->rcv_seq = packet.seq_number + 1;
@@ -154,15 +156,16 @@ void* sender_thread(void* arg) {
     pthread_mutex_lock(&conn->mutex);
 
     while (1) {
-        while (conn->snd_len == 0) {
+        while (conn->snd_len == 0 || conn->peer_window == 0) {
             pthread_cond_wait(&conn->cond_send, &conn->mutex);
         }
-
         uint8_t buf[BUFFER_SIZE];
         uint32_t seq = conn->snd_seq;
         uint32_t ack = conn->rcv_seq;
-        // memcpy(buf, conn->snd_buf, len);
-        size_t peek_len = conn->snd_len > PACKET_DATA_SIZE ? PACKET_DATA_SIZE : conn->snd_len;
+
+        size_t want = conn->snd_len > PACKET_DATA_SIZE ? PACKET_DATA_SIZE : conn->snd_len;
+        size_t peek_len = want > conn->peer_window ? conn->peer_window : want;
+
         uint32_t len = rb_peek(&conn->snd_buf, buf, peek_len);
 
         printf("Sender thread buffer data len: %u\n", len);

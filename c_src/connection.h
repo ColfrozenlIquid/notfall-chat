@@ -74,6 +74,8 @@ typedef struct Connection {
     RingBuffer rcv_buf;
     size_t rcv_len;
 
+    size_t peer_window;
+
     struct timespec time_wait_start;
 
     int sockfd;
