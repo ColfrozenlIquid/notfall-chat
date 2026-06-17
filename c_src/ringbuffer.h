@@ -31,3 +31,5 @@ bool rb_is_empty(RingBuffer* rb);
 size_t rb_used(RingBuffer* rb);
 
 void rb_read_message(RingBuffer* rb, uint8_t* dst, size_t* out_len);
+
+int rb_try_read_message(RingBuffer* rb, uint8_t* dst, size_t dst_cap, size_t* out_len);

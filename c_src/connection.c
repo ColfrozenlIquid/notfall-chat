@@ -40,9 +40,9 @@ int connection_receive(Connection* conn, uint8_t* dst, size_t* out_len) {
     while (rb_is_empty(&conn->rcv_buf)) {
         pthread_cond_wait(&conn->cond_recv, &conn->mutex);
     }
-    rb_read_message(&conn->rcv_buf, dst, out_len);
+    int res = rb_try_read_message(&conn->rcv_buf, dst, 8192, out_len);
     pthread_mutex_unlock(&conn->mutex);
-    return 0;
+    return res;
 }
 
 int connection_try_receive(Connection* conn, uint8_t* dst, size_t* out_len) {

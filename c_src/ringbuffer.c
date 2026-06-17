@@ -103,3 +103,28 @@ void rb_read_message(RingBuffer* rb, uint8_t* dst, size_t* out_len) {
     rb->count -= data_len;
     *out_len = data_len;
 }
+
+int rb_try_read_message(RingBuffer* rb, uint8_t* dst, size_t dst_cap, size_t* out_len) {
+    if (rb->count < 4) {
+        return 0; // not even the header has fully arrived
+    }
+    uint32_t data_len = rb_peek_len(rb);
+    size_t total = 4 + (size_t)data_len;
+    if (rb->count < total) {
+        return 0; // header arrived, payload still incomplete
+    }
+    if (data_len > dst_cap) {
+        return -1; // caller's buffer too small / corrupt length
+    }
+    rb_advance(rb, 4); // skip header
+    size_t start = rb->tail;
+    size_t first_chunk = RING_BUFFER_SIZE - start;
+    if (first_chunk > data_len) first_chunk = data_len;
+    memcpy(dst, rb->data + start, first_chunk);
+    if (data_len > first_chunk) {
+        memcpy(dst + first_chunk, rb->data, data_len - first_chunk);
+    }
+    rb_advance(rb, data_len);
+    *out_len = data_len;
+    return 1;
+}
