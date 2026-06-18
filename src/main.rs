@@ -55,6 +55,76 @@ fn get_network_devices() -> Vec<NetworkDevice> {
     result
 }
 
+fn generate_name() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let adjectives = [
+        "ancient",
+        "blazing",
+        "cosmic",
+        "drifting",
+        "electric",
+        "frozen",
+        "glowing",
+        "hidden",
+        "infinite",
+        "jolting",
+        "kinetic",
+        "lunar",
+        "mystic",
+        "neon",
+        "orbital",
+        "phantom",
+        "quantum",
+        "rogue",
+        "stellar",
+        "turbo",
+        "umbral",
+        "void",
+        "wandering",
+        "xenon",
+        "zephyr",
+    ];
+
+    let nouns = [
+        "albatross",
+        "basilisk",
+        "condor",
+        "drifter",
+        "eclipse",
+        "falcon",
+        "ghost",
+        "harbinger",
+        "ironclad",
+        "jackal",
+        "kraken",
+        "lynx",
+        "mongoose",
+        "nebula",
+        "osprey",
+        "panther",
+        "quasar",
+        "raptor",
+        "sphinx",
+        "tempest",
+        "ulysses",
+        "vortex",
+        "wraith",
+        "xenolith",
+        "yeti",
+    ];
+
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() as usize)
+        .unwrap_or(42);
+
+    let adj = adjectives[seed % adjectives.len()];
+    let noun = nouns[(seed / adjectives.len() + seed) % nouns.len()];
+
+    format!("{}-{}", adj, noun)
+}
+
 fn main() -> iced::Result {
     let args: Vec<String> = env::args().collect();
     let headless = args.contains(&"--headless".to_string());
@@ -62,7 +132,9 @@ fn main() -> iced::Result {
         .windows(2)
         .find(|w| w[0] == "--name")
         .map(|w| w[1].clone())
-        .unwrap_or_else(|| "pop-os".to_string());
+        .unwrap_or_else(|| generate_name());
+
+    println!("Assigned self to name: {}", name);
 
     let devices = get_network_devices();
     println!("Network Devices: {:?}", devices);
