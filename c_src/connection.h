@@ -125,6 +125,8 @@ Connection* connection_create(void);
 
 void connection_destroy(Connection* conn);
 
+const char* connection_remote_ip(Connection* conn);
+
 double connection_srtt(Connection* conn);
 
 double connection_rttvar(Connection* conn);

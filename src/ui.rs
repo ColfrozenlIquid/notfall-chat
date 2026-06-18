@@ -114,11 +114,13 @@ impl App {
                     self.peers = t.peers().cloned().collect();
                 }
                 while let Ok(handle) = self.incoming_connections.try_recv() {
+                    let remote_ip = handle.remote_ip();
                     let peer_name = self
-                        .selected_peer
-                        .as_deref()
-                        .expect("Peer name not set")
-                        .to_string();
+                        .peers
+                        .iter()
+                        .find(|p| p.ip == remote_ip)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| remote_ip.clone());
                     let handle_clone = handle.clone();
                     self.connections.insert(
                         peer_name.clone(),

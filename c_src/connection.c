@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,6 +109,10 @@ void notify_established(Connection* conn) {
     if (conn->on_accept) {
         conn->on_accept(conn, conn->on_accept_userdata);
     }
+}
+
+const char* connection_remote_ip(Connection* conn) {
+    return inet_ntoa(conn->peer_addr.sin_addr);
 }
 
 void reset_listen(Connection *conn) {}

@@ -112,6 +112,14 @@ impl ConnectionHandle {
     pub fn get_srtt(&self) -> f64 {
         return unsafe { connection_srtt(self.0.0) };
     }
+
+    pub fn remote_ip(&self) -> String {
+        unsafe {
+            std::ffi::CStr::from_ptr(connection_remote_ip(self.0.0))
+                .to_string_lossy()
+                .into_owned()
+        }
+    }
 }
 
 #[repr(C)]
@@ -143,6 +151,7 @@ unsafe extern "C" {
     pub fn connection_wait(conn: *mut Connection);
     pub fn connection_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
     pub fn connection_try_receive(conn: *mut Connection, dst: *mut u8, out_len: *mut usize) -> i32;
+    pub fn connection_remote_ip(conn: *mut Connection) -> *const c_char;
 
     pub fn connection_srtt(conn: *mut Connection) -> f64;
     pub fn connection_rttvar(conn: *mut Connection) -> f64;
