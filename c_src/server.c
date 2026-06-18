@@ -192,7 +192,9 @@ void* sender_thread(void* arg) {
 
         while (conn->snd_ack != expected_ack && retries < MAX_RETRIES) {
             clock_gettime(CLOCK_REALTIME, &deadline);
-            deadline.tv_nsec += RTO_MS * 1000000L;
+            int timeout = RTO_MS;
+            // int timeout = connection_srtt(conn) + 4 * connection_rttvar(conn);  Not sur eif this will work
+            deadline.tv_nsec += timeout * 1000000L;
             if (deadline.tv_nsec >= 1000000000L) {
                 deadline.tv_sec++;
                 deadline.tv_nsec -= 1000000000L;
