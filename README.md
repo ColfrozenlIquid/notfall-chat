@@ -1,9 +1,13 @@
-1. iw list | grep -A 10 "Supported interface modes"
-2. sudo nmcli device set `wlan0` managed no
-2. sudo ip link set `wlan0` down
-3. sudo iw dev `wlan0` set type ibss
-4. sudo ip link set `wlan0` up
-5. sudo iw dev wlan0 ibss join MyAdHocNet 2412
-6. sudo ip addr add 192.168.50.1/24 dev `wlan0`
-7. sudo ip addr add 192.168.50.2/24 dev `wlan0`
-8. ping 192.168.50.2
+On `Host`:
+
+```shell
+nmcli device wifi hotspot ifname `wlp13s0` ssid mylink password "password123"
+
+nmcli connection modify Hotspot ipv4.addresses 192.168.4.1/24 ipv4.method shared
+
+nmcli connection up Hotspot
+```
+
+On `Client`:
+
+Connect to Hotspot with "password123"

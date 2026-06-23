@@ -151,6 +151,12 @@ impl App {
                 }
             }
             Message::PeerConnect(peer_name, peer_ip) => {
+                if let Some(connected) = self.selected_peer.as_ref() {
+                    if connected == &peer_name {
+                        return Task::none();
+                    }
+                }
+
                 self.selected_peer = Some(peer_name.clone());
 
                 return Task::perform(
@@ -375,7 +381,7 @@ impl App {
     }
 
     fn theme(_: &App) -> Theme {
-        Theme::KanagawaDragon
+        Theme::Light
     }
 }
 
